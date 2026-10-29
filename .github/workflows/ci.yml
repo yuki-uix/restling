@@ -1,0 +1,30 @@
+name: macOS checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Test
+        run: swift test
+      - name: Build universal application
+        run: ./scripts/build-app.sh --universal
+      - name: Package and verify release artifacts
+        run: ./scripts/package-release.sh --skip-build
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: restling-preview
+          path: |
+            dist/Restling-*-universal.zip
+            dist/update.json
+            dist/SHA256SUMS
+            dist/restling.rb
