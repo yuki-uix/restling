@@ -48,6 +48,17 @@ Forests, settings and update preferences stay on your Mac. There are no accounts
 
 The bundle identifier remains `local.yuki.breaktime` so existing local forests from 小憩 are retained. Quit the earlier app before running Restling to avoid duplicate reminders.
 
+## Roadmap
+
+Feature planning and progress live in [Restling Projects](https://github.com/users/yuki-uix/projects/6/views/4) (sign in as `yuki-uix` to view the private project):
+
+- [Feature board](https://github.com/users/yuki-uix/projects/6/views/4): backlog → ready → in progress → validation → done.
+- [Feature schedule](https://github.com/users/yuki-uix/projects/6/views/5): Now / Next / Later / Parked / Shipped.
+- [Next iteration](https://github.com/users/yuki-uix/projects/6/views/6): [gentle pre-warning and snooze #1](https://github.com/yuki-uix/restling/issues/1), [working days and hours #2](https://github.com/yuki-uix/restling/issues/2), then [temporary do-not-disturb #3](https://github.com/yuki-uix/restling/issues/3).
+- [Version plan](https://github.com/users/yuki-uix/projects/6/views/7) and public [milestones](https://github.com/yuki-uix/restling/milestones): v0.9 for everyday reminders, then v0.10 for long-term forest growth and data foundations.
+
+Each issue includes acceptance criteria and dependencies. Now selects the next work; it does not mean implementation has started. Plan by version and sequence, then agree dates when an iteration starts. Move one item at a time into implementation and validation. Developer ID signing and notarization remain [parked #12](https://github.com/yuki-uix/restling/issues/12) until the developer membership and certificate are ready.
+
 ## Build
 
 Use macOS with Xcode Command Line Tools and a compatible Swift toolchain.
