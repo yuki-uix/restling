@@ -23,13 +23,27 @@ You can also download the app from [GitHub Releases](https://github.com/yuki-uix
 ## Your rest forest
 
 - Start with bare earth. The first completed break brings a sprout, the second a sapling, and the third a lasting tree and more land.
-- Unlock pine and blossom trees after 3 and 6 completed breaks. Every 3 breaks adds another tree; full groves make room for new ones.
-- Browse the tree catalogue and choose which unlocked species to grow. Existing trees stay as they are.
+- Unlock pine and blossom trees after 3 and 6 completed breaks, then birch at 12, willow at 36 and ginkgo at 72. Every 3 breaks adds another tree; a full grove keeps its 16 trees and the next break begins another piece of land.
+- Browse all six species in the tree catalogue, including locked trees and their sprout, sapling and mature previews. Changing the species preserves the current growth stage and every tree already planted.
 - Enjoy sunlight, moving clouds, breeze and rain. Weather changes the atmosphere, not your progress; Reduce Motion freezes animation.
 - Rest behind a native frosted-glass overlay. There is nothing to feed or collect during the break. Press Esc to leave early; your existing forest stays safe.
 - Keep separate local forest profiles. Previewing or skipping a break does not earn growth.
 
 The default rhythm is adjustable. This is a rest companion, with no streak penalty or withering trees.
+
+## Scenery that stays with your forest
+
+Open **“林地手记”** from the main window's forest card or menu bar to see the next ecological discovery, its cumulative-rest condition and the grove it belongs to.
+
+| Completed rests in this forest | New scenery | Where it stays |
+| --- | --- | --- |
+| 36 | A reed-lined pond | Grove 1 |
+| 72 | A stone bridge over the stream | Grove 2 |
+| 120 | Rabbit visitors in the grass | Grove 3 |
+
+After a discovery appears, the journal can take you back to its grove. Opening a new piece of bare land does not move or duplicate these landmarks. Existing forests use their earned cumulative totals to reveal eligible scenery; upgrading, browsing and visiting do not add rests, trees or event records.
+
+The new scenery and visitors are for the normal forest window after a break. They do not appear in the 20-second rest overlay, and there is nothing to claim or attend to during the break. Early growth remains unchanged: the first three rests still bring sprout, sapling and tree, followed by flowers at 6, a stream at 12 and mushrooms at 24.
 
 ## Reminders that fit your day
 
@@ -59,7 +73,7 @@ Open **“数据与备份”** from the main window's footer or the menu bar. It
 
 If the existing archive cannot be read, the data window identifies the temporary forest and offers **“导出原始存档…”** instead of presenting it as a complete backup. The raw export preserves the unreadable bytes; it is not a validated Restling backup. You can select a valid backup to repair the local data. Before applying it, Restling saves the exact unreadable original and the current portable settings in a local safety file. Returning to that safety copy is explicitly reviewed as a return to the unreadable state, and a valid backup can be selected again to repair it. The app does not display unknown original counts as zero.
 
-This release provides event storage and local recovery. Calendar views, weekly reports, accounts and cloud sync are outside this Epic. See [the backup format and recovery rules](docs/backup-format.md) for details.
+Event storage and local recovery remain available alongside the forest ecology additions. Calendar views, weekly reports, accounts and cloud sync are outside these Epics. See [the backup format and recovery rules](docs/backup-format.md) for details, including which app version is needed for the new tree species.
 
 ## Updates
 
@@ -86,14 +100,14 @@ Feature planning and progress live in [Restling Projects](https://github.com/use
 - [Features by Epic](https://github.com/users/yuki-uix/projects/6/views/9): reminder experience (#1–#6), records and data protection (#7–#8), long-term forest ecology (#9–#10), cross-device companionship (#11), and trusted distribution (#12).
 - [Feature board](https://github.com/users/yuki-uix/projects/6/views/4): backlog → ready → in progress → validation → done.
 - [Feature schedule](https://github.com/users/yuki-uix/projects/6/views/5): Now / Next / Later / Parked / Shipped.
-- [Iteration board](https://github.com/users/yuki-uix/projects/6/views/6): agreed Now work, with issue state showing whether each item is queued, in progress or complete. The local records and backup scope is tracked by [Epic #18](https://github.com/yuki-uix/restling/issues/18), covering #7 and #8.
-- [Version plan](https://github.com/users/yuki-uix/projects/6/views/7) and public [milestones](https://github.com/yuki-uix/restling/milestones): v0.9 for everyday reminders, then v0.10 for long-term forest growth and data foundations.
+- [Iteration board](https://github.com/users/yuki-uix/projects/6/views/6): agreed Now work, with issue state showing whether each item is queued, in progress or complete. Local records and backup are tracked by [Epic #18](https://github.com/yuki-uix/restling/issues/18); long-term ecology and tree variety are tracked by [Epic #19](https://github.com/yuki-uix/restling/issues/19).
+- [Version plan](https://github.com/users/yuki-uix/projects/6/views/7) and public [milestones](https://github.com/yuki-uix/restling/milestones): v0.9 delivers everyday reminders, v0.10 the data foundation and local backups, and v0.11 long-term forest ecology.
 
 Each issue includes acceptance criteria and dependencies. Now selects the next work; it does not mean implementation has started. Plan by version and sequence, then agree dates when an iteration starts. Move one item at a time into implementation and validation. Developer ID signing and notarization remain [parked #12](https://github.com/yuki-uix/restling/issues/12) until the developer membership and certificate are ready.
 
 Epics track product outcomes across versions; milestones stay on feature issues. Existing feature views exclude parent Epics so execution cards are not duplicated. Sub-issue progress covers the currently defined tasks; review each Epic's overall acceptance criteria before closing it. Cross-device scope research alone does not mean cross-device features have shipped. The four v0.8.0 baseline cards remain separate historical records.
 
-Version 0.10.0 delivers Epic #18's data foundation and local backups. The v0.10 milestone also contains the separate, unfinished forest ecology work in [Epic #19](https://github.com/yuki-uix/restling/issues/19); this release does not mark #9 or #10 complete.
+Version 0.10.0 delivered Epic #18's data foundation and local backups. Version 0.11.0 completes Epic #19's long-term ecology and tree catalogue scope (#9 and #10), originally included in the v0.10 candidate plan. Cross-device work and Developer ID signing/notarization remain separate planned work.
 
 ## Build
 

@@ -27,14 +27,14 @@ struct ForestCatalogueView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            HStack(spacing: 10) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                 ForEach(ForestSpecies.allCases) { species in speciesTab(species) }
-            }.frame(height: 76)
+            }.frame(height: 154)
 
             HStack(alignment: .top, spacing: 22) {
                 portrait
                 details
-            }.frame(height: 348)
+            }.frame(height: 318)
 
             Spacer(minLength: 0)
             Divider().overlay(green.opacity(0.06))
@@ -52,10 +52,11 @@ struct ForestCatalogueView: View {
                 }.buttonStyle(.borderedProminent).controlSize(.large)
                     .disabled(!unlocked || isCurrent)
                     .accessibilityLabel(actionTitle)
+                    .accessibilityIdentifier("catalogue.choose")
             }.frame(height: 52)
         }
         .padding(26)
-        .frame(width: 740, height: 650)
+        .frame(width: 760, height: 740)
         .background(paper).foregroundStyle(ink).tint(green)
         .preferredColorScheme(.light)
         .onChange(of: profile.id) { _ in confirmation = nil }
@@ -75,6 +76,7 @@ struct ForestCatalogueView: View {
                     .background(green.opacity(0.07), in: Circle())
             }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
                 .accessibilityLabel("关闭树种图鉴").help("关闭树种图鉴（Esc）")
+                .accessibilityIdentifier("catalogue.close")
         }.frame(height: 48)
     }
 
@@ -92,28 +94,30 @@ struct ForestCatalogueView: View {
                     Text(species.title).font(.system(size: 13, weight: .semibold))
                     HStack(spacing: 3) {
                         if !canPlant { Image(systemName: "lock.fill").font(.system(size: 8)) }
-                        Text(canPlant ? (species == profile.selectedSpecies ? "正在培育" : "已解锁 · 可选择") : "休息 \(species.unlockAfter) 次解锁")
+                        Text(canPlant ? (species == profile.selectedSpecies ? "正在培育" : "已解锁 · 可选择") : "累计 \(species.unlockAfter) 次解锁")
                             .font(.system(size: 9)).foregroundStyle(muted)
                     }
                 }
                 Spacer(minLength: 1)
-            }.padding(.horizontal, 11).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }.padding(.horizontal, 11).frame(maxWidth: .infinity).frame(height: 72)
                 .background(browsing ? green.opacity(0.09) : Color.white.opacity(0.50),
                             in: RoundedRectangle(cornerRadius: 13))
                 .overlay(RoundedRectangle(cornerRadius: 13)
                     .stroke(browsing ? green.opacity(0.45) : green.opacity(0.10), lineWidth: 1))
         }.buttonStyle(.plain)
-            .accessibilityLabel("查看\(species.title)图鉴，\(canPlant ? "已解锁" : "休息 \(species.unlockAfter) 次解锁")")
+            .accessibilityLabel("查看\(species.title)图鉴，\(canPlant ? "已解锁" : "累计完成 \(species.unlockAfter) 次休息解锁")")
+            .accessibilityValue(browsing ? "正在查看" : "")
+            .accessibilityIdentifier("catalogue.species.\(species.rawValue)")
     }
 
     private var portrait: some View {
         VStack(spacing: 9) {
             CatalogueTreeIllustration(species: selected, stage: 3)
-                .frame(maxWidth: .infinity).frame(height: 276)
+                .frame(maxWidth: .infinity).frame(height: 246)
             Text("成树外观").font(.system(size: 11, weight: .medium))
             Text("外观示意 · 不计入你的森林")
                 .font(.system(size: 9)).foregroundStyle(muted)
-        }.padding(14).frame(width: 218, height: 348)
+        }.padding(14).frame(width: 218, height: 318)
             .background(green.opacity(0.035), in: RoundedRectangle(cornerRadius: 17))
             .overlay(RoundedRectangle(cornerRadius: 17).stroke(green.opacity(0.09), lineWidth: 1))
             .accessibilityElement(children: .combine)
@@ -128,7 +132,7 @@ struct ForestCatalogueView: View {
                 Label(unlocked ? "已解锁" : "还在路上", systemImage: unlocked ? "checkmark.circle" : "lock")
                     .font(.system(size: 10)).foregroundStyle(muted)
             }
-            Text(description).font(.system(size: 12)).foregroundStyle(muted)
+            Text(selected.catalogueDescription).font(.system(size: 12)).foregroundStyle(muted)
                 .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -144,11 +148,16 @@ struct ForestCatalogueView: View {
                                 .font(.system(size: 9)).foregroundStyle(muted)
                         }.padding(.vertical, 7).frame(maxWidth: .infinity)
                             .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 11))
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("\(selected.title)，\(["新芽", "幼苗", "成树"][stage - 1])外观预览，本轮第 \(stage) 次休息")
+                            .accessibilityIdentifier("catalogue.stage.\(selected.rawValue).\(stage)")
                     }
                 }
             }
 
             VStack(alignment: .leading, spacing: 5) {
+                Text(selected.unlockAfter == 0 ? "从第一片空地就能培育。" : "解锁条件：这份森林累计完成 \(selected.unlockAfter) 次休息。")
+                    .font(.system(size: 10)).foregroundStyle(muted)
                 if let confirmation {
                     Label(confirmation, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(green).font(.system(size: 11, weight: .medium))
@@ -171,14 +180,6 @@ struct ForestCatalogueView: View {
         return isCurrent ? "正在培育\(selected.title)" : "选择\(selected.title)"
     }
 
-    private var description: String {
-        switch selected {
-        case .oak: return "圆圆的树冠，浅绿里藏着一点阳光。它是这片森林最初的陪伴。"
-        case .pine: return "层层针叶，长成一座小小的绿色尖塔。让林间多一点清凉的深绿。"
-        case .blossom: return "柔粉的花冠，像一团轻轻落在枝头的云。给自己的森林留一点春天。"
-        }
-    }
-
     private func chooseSpecies() {
         guard unlocked, !isCurrent else { return }
         forest.selectSpecies(selected)
@@ -194,14 +195,28 @@ private struct CatalogueTreeIllustration: View {
     let species: ForestSpecies
     let stage: Int
 
-    var body: some View {
-        Canvas { context, size in
-            var painter = CatalogueTreePainter(context: context)
-            let scale = min(size.width / 72, size.height / 92)
-            painter.context.translateBy(x: size.width / 2, y: (size.height - 92 * scale) / 2 + 82 * scale)
-            painter.context.scaleBy(x: scale, y: scale)
-            painter.paint(species: species, stage: stage)
-        }.accessibilityHidden(true)
+    @ViewBuilder var body: some View {
+        switch species {
+        case .birch, .willow, .ginkgo:
+            ZStack {
+                Canvas { context, size in
+                    var painter = CatalogueTreePainter(context: context)
+                    let scale = min(size.width / 72, size.height / 92)
+                    painter.context.translateBy(x: size.width / 2, y: (size.height - 92 * scale) / 2 + 82 * scale)
+                    painter.context.scaleBy(x: scale, y: scale)
+                    painter.paintGround()
+                }
+                ForestTreeIllustration(species: species, stage: stage)
+            }.accessibilityHidden(true)
+        case .oak, .pine, .blossom:
+            Canvas { context, size in
+                var painter = CatalogueTreePainter(context: context)
+                let scale = min(size.width / 72, size.height / 92)
+                painter.context.translateBy(x: size.width / 2, y: (size.height - 92 * scale) / 2 + 82 * scale)
+                painter.context.scaleBy(x: scale, y: scale)
+                painter.paint(species: species, stage: stage)
+            }.accessibilityHidden(true)
+        }
     }
 }
 
@@ -209,9 +224,7 @@ private struct CatalogueTreePainter {
     var context: GraphicsContext
 
     func paint(species: ForestSpecies, stage: Int) {
-        oval(-22, -3, 44, 9, color: color(0x526D4C).opacity(0.12), step: 2)
-        oval(-17, -2, 34, 7, color: color(0xB49A6E).opacity(0.45), step: 2)
-        oval(-13, -1, 26, 5, color: color(0x947750), step: 1)
+        paintGround()
         if stage == 1 {
             rect(-1, -12, 2, 12, color(0x608050))
             rect(-6, -15, 6, 4, color(0x7DA862))
@@ -230,8 +243,15 @@ private struct CatalogueTreePainter {
             case .oak: tree.oak()
             case .pine: tree.pine()
             case .blossom: tree.blossom()
+            case .birch, .willow, .ginkgo: break
             }
         }
+    }
+
+    func paintGround() {
+        oval(-22, -3, 44, 9, color: color(0x526D4C).opacity(0.12), step: 2)
+        oval(-17, -2, 34, 7, color: color(0xB49A6E).opacity(0.45), step: 2)
+        oval(-13, -1, 26, 5, color: color(0x947750), step: 1)
     }
 
     private func oak() {

@@ -11,12 +11,27 @@ final class ForestStore: ObservableObject {
         let completedRests: Int
 
         var title: String {
+            if let milestone = ForestEcology.milestone(at: completedRests) {
+                switch milestone {
+                case .pond: return "池塘，留住了一点天光。"
+                case .bridge: return "溪流上，多了一座石桥。"
+                case .visitors: return "林间来了新朋友。"
+                }
+            }
             if completedRests == 1 { return "你的森林，发芽了。" }
             if completedRests % ForestLandscape.restsPerGrove == 1 { return "新的林地，发芽了。" }
             if completedRests % ForestLandscape.restsPerGrove == 0 { return "这片林地，长满了。" }
             return completedRests % 3 == 0 ? "一棵树留下来了。" : "小树又长大了一点。"
         }
         var detail: String {
+            if let milestone = ForestEcology.milestone(at: completedRests) {
+                switch milestone {
+                case .pond: return "池塘已留在第 1 片林地，垂柳也已解锁。"
+                case .bridge: return "第 2 片林地架起了石桥，银杏也已解锁。"
+                case .visitors: return "小兔子在第 3 片林地等你，林地手记里可以回看。"
+                }
+            }
+            if completedRests == ForestSpecies.birch.unlockAfter { return "白桦已解锁，图鉴里可以看看它的三个成长阶段。" }
             if completedRests == 1 { return "刚刚的休息，留下了第一抹绿。" }
             if completedRests % ForestLandscape.restsPerGrove == 1 { return "上一片森林依然在这里，新的休息会让这里继续生长。" }
             if completedRests % ForestLandscape.restsPerGrove == 0 { return "下一次休息，会为新的土地添一点绿。" }
