@@ -95,7 +95,7 @@ struct ForestEcologyView: View {
                     Text("\(profile.completedRests) / \(next.unlockAfter) 次")
                         .font(.system(size: 11, design: .monospaced)).foregroundStyle(muted)
                 }
-                ProgressView(value: ecology.progressTowardsNext)
+                ProgressView(value: Double(profile.completedRests), total: Double(next.unlockAfter))
                     .tint(green)
                     .accessibilityLabel("距下一处生态风景的累计进度")
                 Text(ecology.nextMilestoneText)
