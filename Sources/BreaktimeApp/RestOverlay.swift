@@ -134,6 +134,12 @@ private struct RestView: View {
                             .accessibilityLabel("休息剩余 \(clockText(model.restRemaining))")
                         Text(model.isPreview ? "这是预览，成长不会变化" : "休息结束后，自动回到原来的应用。")
                             .font(.system(size: 12)).foregroundStyle(ink.opacity(0.65))
+                        if !model.isPreview {
+                            HStack(spacing: 20) {
+                                Button("3 分钟后休息") { model.snooze(minutes: 3) }
+                                Button("5 分钟后休息") { model.snooze(minutes: 5) }
+                            }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(ink.opacity(0.65))
+                        }
                         Button(model.isPreview ? "结束预览  esc" : "跳过本次休息  esc", action: model.dismissRest)
                             .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(ink.opacity(0.55))
                             .padding(.vertical, 5).padding(.horizontal, 12)
@@ -145,6 +151,10 @@ private struct RestView: View {
             }
             .contextMenu {
                 Text("剩余 \(clockText(model.restRemaining))")
+                if !model.isPreview {
+                    Button("3 分钟后休息") { model.snooze(minutes: 3) }
+                    Button("5 分钟后休息") { model.snooze(minutes: 5) }
+                }
                 Button(model.isPreview ? "结束预览" : "跳过本次休息", action: model.dismissRest)
             }
         }
