@@ -47,6 +47,20 @@ System sleep and display sleep freeze the current timer rather than count time a
 
 Changing the 20/20 rhythm restarts the current timer and preserves your existing forest. Reminder preferences, temporary pause deadlines and the saved timer stay on this Mac. No camera or gaze verification is involved; a completed rest means the app's rest timer finished.
 
+## Local records and backups
+
+Open **“数据与备份”** from the main window's footer or the menu bar. It shows totals across all local forest profiles and the date detailed recording began.
+
+- **Keep the progress you already earned.** Older forests migrate with their cumulative rests, rest time and trees intact. Detailed event records begin after upgrading; Restling does not invent dates or individual records for earlier rests.
+- **Record timer outcomes.** Each new real rest attempt has a stable ID, forest ID, terminal time, configured duration and a `completed` or `skipped` result. A natural timer completion can grow the forest; an unfinished attempt earns no growth. Pausing, sleeping or quitting can retain the same attempt, while previews are excluded. These are timer outcomes, not verified gaze or medical results.
+- **Export a readable JSON backup.** The file includes every local forest, trees, event records and portable settings: rhythm, reminder choices, weather, onboarding and automatic update-check preference. It excludes the running timer, temporary snooze/DND deadlines, macOS login-item registration and update caches. Files are limited to **20 MiB**.
+- **Review before replacing.** “从备份恢复…” validates the file and shows current versus incoming counts. Confirming replaces all local forests, portable settings and events; it does not merge or add their totals. Cancelling or a failed validation leaves existing data unchanged. After a successful restore, reminders stay paused at a fresh use interval.
+- **Return to the previous state.** Before a restore is applied, Restling writes and checks a local safety copy. “恢复上次恢复前的数据…” reviews that copy before replacing current data. This operation also saves the current state, so the latest safety copy always represents the state before the most recent restore. Safety copies remain available after relaunch; earlier copies are retained in `~/Library/Application Support/Restling/Backups/` and can be found with the Finder button.
+
+If the existing archive cannot be read, the data window identifies the temporary forest and offers **“导出原始存档…”** instead of presenting it as a complete backup. The raw export preserves the unreadable bytes; it is not a validated Restling backup. You can select a valid backup to repair the local data. Before applying it, Restling saves the exact unreadable original and the current portable settings in a local safety file. Returning to that safety copy is explicitly reviewed as a return to the unreadable state, and a valid backup can be selected again to repair it. The app does not display unknown original counts as zero.
+
+This release provides event storage and local recovery. Calendar views, weekly reports, accounts and cloud sync are outside this Epic. See [the backup format and recovery rules](docs/backup-format.md) for details.
+
 ## Updates
 
 Restling checks its [public release feed](https://github.com/yuki-uix/restling/releases/latest/download/update.json) at most once every 24 hours automatically. You can disable automatic checks or choose “检查更新” in the app or menu bar at any time.
@@ -72,12 +86,14 @@ Feature planning and progress live in [Restling Projects](https://github.com/use
 - [Features by Epic](https://github.com/users/yuki-uix/projects/6/views/9): reminder experience (#1–#6), records and data protection (#7–#8), long-term forest ecology (#9–#10), cross-device companionship (#11), and trusted distribution (#12).
 - [Feature board](https://github.com/users/yuki-uix/projects/6/views/4): backlog → ready → in progress → validation → done.
 - [Feature schedule](https://github.com/users/yuki-uix/projects/6/views/5): Now / Next / Later / Parked / Shipped.
-- [Iteration board](https://github.com/users/yuki-uix/projects/6/views/6): agreed Now work, with issue state showing whether each item is queued, in progress or complete. The v0.9 reminder scope is tracked by [Epic #17](https://github.com/yuki-uix/restling/issues/17) and its six feature issues.
+- [Iteration board](https://github.com/users/yuki-uix/projects/6/views/6): agreed Now work, with issue state showing whether each item is queued, in progress or complete. The local records and backup scope is tracked by [Epic #18](https://github.com/yuki-uix/restling/issues/18), covering #7 and #8.
 - [Version plan](https://github.com/users/yuki-uix/projects/6/views/7) and public [milestones](https://github.com/yuki-uix/restling/milestones): v0.9 for everyday reminders, then v0.10 for long-term forest growth and data foundations.
 
 Each issue includes acceptance criteria and dependencies. Now selects the next work; it does not mean implementation has started. Plan by version and sequence, then agree dates when an iteration starts. Move one item at a time into implementation and validation. Developer ID signing and notarization remain [parked #12](https://github.com/yuki-uix/restling/issues/12) until the developer membership and certificate are ready.
 
 Epics track product outcomes across versions; milestones stay on feature issues. Existing feature views exclude parent Epics so execution cards are not duplicated. Sub-issue progress covers the currently defined tasks; review each Epic's overall acceptance criteria before closing it. Cross-device scope research alone does not mean cross-device features have shipped. The four v0.8.0 baseline cards remain separate historical records.
+
+Version 0.10.0 delivers Epic #18's data foundation and local backups. The v0.10 milestone also contains the separate, unfinished forest ecology work in [Epic #19](https://github.com/yuki-uix/restling/issues/19); this release does not mark #9 or #10 complete.
 
 ## Build
 

@@ -8,7 +8,7 @@ private let forestMuted = Color(red: 0.46, green: 0.52, blue: 0.43)
 private let forestPaper = Color(red: 0.97, green: 0.96, blue: 0.91)
 
 private enum ForestMainSheet: String, Identifiable {
-    case settings, createProfile, renameProfile, onboarding, catalogue
+    case settings, dataBackup, createProfile, renameProfile, onboarding, catalogue
     var id: String { rawValue }
 }
 
@@ -18,6 +18,7 @@ struct MainView: View {
     @ObservedObject var forest: ForestStore
     @ObservedObject var updater: UpdateChecker
     @ObservedObject var loginItem: LoginItemController
+    private let backupController: DataBackupController
     private let onShowUpdates: () -> Void
     @State private var sheet: ForestMainSheet?
     @State private var profileName = ""
@@ -27,12 +28,16 @@ struct MainView: View {
     @AppStorage("restForestOnboarding.v1") private var hasSeenOnboarding = false
     private let onboardingEnabled: Bool
 
-    init(model: AppModel, updater: UpdateChecker, loginItem: LoginItemController, onShowUpdates: @escaping () -> Void,
+    init(model: AppModel, updater: UpdateChecker, loginItem: LoginItemController,
+         backupController: DataBackupController, onShowUpdates: @escaping () -> Void,
          onboardingEnabled: Bool = true) {
         self.model = model
         _forest = ObservedObject(wrappedValue: model.forest)
         self.updater = updater
         self.loginItem = loginItem
+        self.backupController = backupController
+        _weatherChoice = AppStorage(wrappedValue: "automatic", "forestWeatherPreference.v1", store: model.preferenceDefaults)
+        _hasSeenOnboarding = AppStorage(wrappedValue: false, "restForestOnboarding.v1", store: model.preferenceDefaults)
         self.onShowUpdates = onShowUpdates
         self.onboardingEnabled = onboardingEnabled
     }
@@ -72,6 +77,7 @@ struct MainView: View {
         .sheet(item: $sheet) { currentSheet in
             switch currentSheet {
             case .settings: settingsSheet
+            case .dataBackup: DataBackupView(controller: backupController, onClose: { sheet = nil })
             case .createProfile, .renameProfile: profileSheet(currentSheet)
             case .catalogue:
                 ForestCatalogueView(forest: forest, initiallySelected: catalogueSpecies,
@@ -99,6 +105,9 @@ struct MainView: View {
         .onChange(of: profile.completedRests) { _ in selectedGroveIndex = nil }
         .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showReminderSettings"))) { _ in
             sheet = .settings
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showDataBackup"))) { _ in
+            sheet = .dataBackup
         }
     }
 
@@ -358,6 +367,8 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Label("本机档案 · 云同步未连接", systemImage: "externaldrive")
+                Button("数据与备份") { sheet = .dataBackup }.buttonStyle(.link)
+                    .accessibilityIdentifier("main.dataBackup")
                 Button("新手指引") { sheet = .onboarding }.buttonStyle(.link)
                 Spacer()
                 Text("预览和跳过不计成长 · 暂停不会让树枯萎")

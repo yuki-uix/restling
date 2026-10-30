@@ -62,6 +62,10 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
         completedRests >= species.unlockAfter
     }
 
+    public func containsCreditedRestID(_ id: UUID) -> Bool {
+        creditedRestIDs.contains(id)
+    }
+
     /// The caller supplies one stable ID per rest, including retries after saving.
     @discardableResult
     public mutating func recordRest(id restID: UUID, seconds: TimeInterval, date: Date = Date()) -> Bool {
