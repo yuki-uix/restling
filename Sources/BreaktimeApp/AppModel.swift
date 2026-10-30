@@ -83,6 +83,8 @@ final class AppModel: NSObject, ObservableObject {
     private let preferencesKey = "reminderPreferences.v1"
     private let sessionKey = "reminderSession.v1"
 
+    var preferenceDefaults: UserDefaults { defaults }
+
     init(smokeTest: Bool = false, resumingRemaining remaining: TimeInterval? = nil,
          completedFocusSessions: Int = 0, resumingPhase: PomodoroPhase = .focus,
          resumeRunning: Bool = true, forest: ForestStore? = nil, defaults suppliedDefaults: UserDefaults? = nil,
@@ -101,7 +103,7 @@ final class AppModel: NSObject, ObservableObject {
                                                prewarningSeconds: 0, startSoundEnabled: false, endSoundEnabled: false)
         }
         reminderPreferences = preferences
-        self.forest = forest ?? ForestStore(defaults: defaults)
+        self.forest = forest ?? ForestStore(defaults: defaults, now: now)
         let settings: EyeRestSettings
         if let data = defaults.data(forKey: "eyeRestSettings.v1"),
            let saved = try? JSONDecoder().decode(EyeRestSettings.self, from: data) {
@@ -152,7 +154,9 @@ final class AppModel: NSObject, ObservableObject {
             wantsRunning = saved.wantsRunning
             if saved.phase != .focus, let rest = saved.rest,
                rest.duration == Self.duration(of: saved.phase, configuration: config),
-               self.forest.profiles.contains(where: { $0.id == rest.profileID }) {
+               self.forest.profiles.contains(where: { $0.id == rest.profileID }),
+               !self.forest.profiles.contains(where: { $0.containsCreditedRestID(rest.id) }),
+               !self.forest.events.contains(where: { $0.id == rest.id }) {
                 restGrowthSession = rest
             } else if saved.phase != .focus { restartFocus() }
             if let deadline = saved.doNotDisturbUntil, deadline > now(),
@@ -273,7 +277,7 @@ final class AppModel: NSObject, ObservableObject {
         previewRemaining = nil
         snoozeUntil = nil
         // Skipping is deliberately different from completing a full break.
-        restGrowthSession = nil
+        discardRestSession()
         engine.skipPhase()
         if engine.phase != .focus { beginRestGrowth(phase: engine.phase) }
         engine.start()
@@ -297,7 +301,7 @@ final class AppModel: NSObject, ObservableObject {
     func reset() {
         onUserInteraction?()
         previewRemaining = nil
-        restGrowthSession = nil
+        discardRestSession()
         engine.reset()
         hasStarted = false
         wantsRunning = false
@@ -315,7 +319,7 @@ final class AppModel: NSObject, ObservableObject {
             defaults.set(encoded, forKey: "pomodoroConfiguration.v1")
         }
         previewRemaining = nil
-        restGrowthSession = nil
+        discardRestSession()
         engine.updateConfiguration(config)
         hasStarted = false
         wantsRunning = false
@@ -331,7 +335,7 @@ final class AppModel: NSObject, ObservableObject {
             defaults.set(encoded, forKey: settingsKey)
         }
         previewRemaining = nil
-        restGrowthSession = nil
+        discardRestSession()
         engine.updateConfiguration(settings.configuration)
         hasStarted = false
         wantsRunning = false
@@ -445,7 +449,8 @@ final class AppModel: NSObject, ObservableObject {
             for phase in transitions {
                 if phase == .focus {
                     if let rest = restGrowthSession {
-                        let credited = forest.completeRest(profileID: rest.profileID, id: rest.id, seconds: rest.duration)
+                        let credited = forest.completeRest(profileID: rest.profileID, id: rest.id,
+                                                           seconds: rest.duration, date: now())
                         if credited { emitSound(.end) }
                     }
                     restGrowthSession = nil
@@ -463,6 +468,84 @@ final class AppModel: NSObject, ObservableObject {
     private func beginRestGrowth(phase: PomodoroPhase) {
         restGrowthSession = RestGrowthSession(id: UUID(), profileID: forest.current.id,
             duration: phase == .longBreak ? engine.configuration.longBreakDuration : engine.configuration.shortBreakDuration)
+    }
+
+    /// An unfinished real rest has a terminal record, but never earns growth.
+    /// Pausing, sleeping and quitting retain the same session instead.
+    private func discardRestSession() {
+        if let rest = restGrowthSession {
+            forest.skipRest(profileID: rest.profileID, id: rest.id, seconds: rest.duration, date: now())
+        }
+        restGrowthSession = nil
+    }
+
+    func makeBackup() throws -> RestlingBackup {
+        guard forest.canSafelyReplace else {
+            throw ForestDataError.invalid("本机原始存档未能读取。请先导出原始存档，避免将临时空森林当作完整备份。")
+        }
+        return try RestlingBackup(forest: forest.snapshot(), settings: portableSettings(), createdAt: now())
+    }
+
+    private func portableSettings() -> BackupSettings {
+        let weather = defaults.string(forKey: "forestWeatherPreference.v1") ?? "automatic"
+        return BackupSettings(eyeRest: eyeRestSettings, reminders: reminderPreferences,
+            weatherChoice: weather, hasSeenOnboarding: defaults.bool(forKey: "restForestOnboarding.v1"),
+            automaticUpdateChecksEnabled: defaults.object(forKey: "appUpdates.v1.automaticChecksEnabled") as? Bool ?? true)
+    }
+
+    func makeRecoverySnapshot() throws -> RecoverySnapshot {
+        if forest.canSafelyReplace { return RecoverySnapshot(backup: try makeBackup()) }
+        guard let raw = forest.rawArchiveData() else {
+            throw ForestDataError.invalid("没有找到需要保护的原始存档，恢复已取消。")
+        }
+        return try RecoverySnapshot(rawOriginal: raw, settings: portableSettings(), createdAt: now())
+    }
+
+    func restoreRecoverySnapshot(_ snapshot: RecoverySnapshot) throws {
+        try snapshot.validate()
+        if let backup = snapshot.backup { try restoreBackup(backup); return }
+        guard let raw = snapshot.rawOriginal else { throw ForestDataError.invalid("安全副本缺少原始存档。") }
+        try snapshot.settings.validate()
+        let eyeData = try JSONEncoder().encode(snapshot.settings.eyeRest)
+        let reminderData = try JSONEncoder().encode(snapshot.settings.reminders)
+        try forest.restoreUnreadableOriginal(raw)
+        applyRestoredSettings(snapshot.settings, eyeData: eyeData, reminderData: reminderData)
+    }
+
+    /// All fallible validation/encoding precedes mutation. Imported historical
+    /// events are installed directly, never replayed through the reward path.
+    func restoreBackup(_ backup: RestlingBackup) throws {
+        try backup.validate()
+        let eyeData = try JSONEncoder().encode(backup.settings.eyeRest)
+        let reminderData = try JSONEncoder().encode(backup.settings.reminders)
+        try forest.replace(with: backup.forest)
+        applyRestoredSettings(backup.settings, eyeData: eyeData, reminderData: reminderData)
+    }
+
+    private func applyRestoredSettings(_ settings: BackupSettings, eyeData: Data, reminderData: Data) {
+        defaults.set(eyeData, forKey: settingsKey)
+        defaults.set(reminderData, forKey: preferencesKey)
+        defaults.set(settings.weatherChoice, forKey: "forestWeatherPreference.v1")
+        defaults.set(settings.hasSeenOnboarding, forKey: "restForestOnboarding.v1")
+        defaults.set(settings.automaticUpdateChecksEnabled, forKey: "appUpdates.v1.automaticChecksEnabled")
+        eyeRestSettings = settings.eyeRest
+        reminderPreferences = settings.reminders
+        // A live timer is deliberately excluded from portable backups. Discard
+        // its identity so it cannot later reward a restored copy of that forest.
+        restGrowthSession = nil
+        previewRemaining = nil
+        doNotDisturbUntil = nil
+        snoozeUntil = nil
+        returnGraceUntil = nil
+        prewarningDismissed = false
+        wantsRunning = false
+        hasStarted = false
+        if !reminderPreferences.idlePauseEnabled { isIdle = false }
+        engine = PomodoroEngine(configuration: eyeRestSettings.configuration)
+        previousBlockers = []
+        lastTick = ProcessInfo.processInfo.systemUptime
+        reconcileEligibility()
+        publishUpdate(forceSave: true)
     }
 
     func applyReminderPreferences(_ preferences: ReminderPreferences) {
@@ -596,7 +679,7 @@ final class AppModel: NSObject, ObservableObject {
     }
 
     private func restartFocus() {
-        restGrowthSession = nil
+        discardRestSession()
         prewarningDismissed = false
         engine = PomodoroEngine(configuration: engine.configuration, phase: .focus,
             remaining: engine.configuration.focusDuration,

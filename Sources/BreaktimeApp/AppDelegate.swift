@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var mainWindow: NSWindow?
     private var updateWindow: NSWindow?
     private var updater: UpdateChecker!
+    private var dataBackups: DataBackupController!
     private var updateObservation: AnyCancellable?
     private var startupUpdateTask: Task<Void, Never>?
     private var updateTimer: Timer?
@@ -50,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          resumeRunning: !args.contains("--resume-paused"), defaults: testDefaults)
         updater = UpdateChecker(configuration: smokeTest || uiTest ? nil : UpdateConfiguration.fromBundle(),
                                 defaults: testDefaults ?? .standard)
+        let recovery = smokeTest || uiTest ? LocalBackupRecoveryStore(directory:
+            FileManager.default.temporaryDirectory.appendingPathComponent("Restling-QA-\(UUID().uuidString)", isDirectory: true)) : nil
+        dataBackups = DataBackupController(model: model, updater: updater, recovery: recovery)
         overlay = RestOverlayController(model: model)
         prewarning = PrewarningController(model: model)
         createApplicationMenu()
@@ -109,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appMenu = NSMenu(title: "Restling")
         appMenu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         appMenu.addItem(item("提醒设置…", #selector(showReminderSettings)))
+        appMenu.addItem(item("数据与备份…", #selector(showDataBackup)))
         appMenu.addItem(item("检查更新…", #selector(showUpdates)))
         appMenu.addItem(item("关闭窗口", #selector(closeMainWindow), key: "w"))
         appMenu.addItem(.separator())
@@ -162,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         previewItem = item("森林休息预览（20 秒）", #selector(preview))
         menu.addItem(previewItem)
         menu.addItem(item("提醒设置…", #selector(showReminderSettings)))
+        menu.addItem(item("数据与备份…", #selector(showDataBackup)))
         menu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         updateItem = item("检查更新…", #selector(showUpdates))
         menu.addItem(updateItem)
@@ -221,6 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             window.title = "Restling · 休息森林"
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: MainView(model: model, updater: updater, loginItem: loginItem,
+                backupController: dataBackups,
                 onShowUpdates: { [weak self] in self?.showUpdates() }, onboardingEnabled: !smokeTest && !uiTest))
             window.center()
             mainWindow = window
@@ -273,6 +280,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showReminderSettings() {
         showMainWindow()
         NotificationCenter.default.post(name: .init("Restling.showReminderSettings"), object: nil)
+    }
+    @objc private func showDataBackup() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .init("Restling.showDataBackup"), object: nil)
     }
     @objc private func willSleep() { model.willSleep() }
     @objc private func didWake() { model.didWake() }

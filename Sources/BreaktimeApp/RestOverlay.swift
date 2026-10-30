@@ -99,6 +99,7 @@ private struct RestView: View {
     init(model: AppModel) {
         self.model = model
         forest = model.forest
+        _weatherChoice = AppStorage(wrappedValue: "automatic", "forestWeatherPreference.v1", store: model.preferenceDefaults)
     }
 
     private let ink = Color(red: 0.16, green: 0.32, blue: 0.24)
