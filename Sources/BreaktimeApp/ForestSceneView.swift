@@ -153,6 +153,15 @@ private struct ForestPixelPainter {
             mushroom(x: 282, y: 167, tiny: true)
             flowers(x: 286, y: 186, pink: true)
         }
+        // These are permanent discoveries tied to a particular earned grove,
+        // never repeated on a new island. Rest time remains free of surprises;
+        // the new habitat is there to inspect after the overlay has closed.
+        if !resting {
+            let discoveries = ForestEcology(profile: profile).milestones(inGrove: groveIndex)
+            if discoveries.contains(.pond) { ecologyPond() }
+            if discoveries.contains(.bridge) { ecologyBridge() }
+            if discoveries.contains(.visitors) { ecologyVisitors() }
+        }
         weatherOnLand(landscape: landscape)
         windWisps()
         rain(landscape: landscape)
@@ -337,7 +346,14 @@ private struct ForestPixelPainter {
         local.oval(181, 149, 32, 10, color: Color.pixel(0xB49A6E).opacity(0.4), step: 2)
         local.oval(184, 149, 26, 8, color: Color.pixel(0x947750), step: 2)
         local.oval(189, 150, 16, 4, color: Color.pixel(0xBC9D69), step: 1)
-        if stage == 1 {
+        if (species == .birch || species == .willow || species == .ginkgo), stage > 0 {
+            var young = local.context
+            young.translateBy(x: 197, y: 153)
+            let size = stage == 1 ? 0.85 : 0.66
+            young.scaleBy(x: size, y: size)
+            let bend = (sin(time * 1.08) * climate.windStrength * 1.6 * 2).rounded() / 2
+            ForestNewTreePainter(context: young, canopySway: bend).paint(species: species, stage: stage)
+        } else if stage == 1 {
             local.rect(196, 144, 2, 9, Color.pixel(0x608050))
             var leaves = local
             let bend = (sin(time * 1.08) * climate.windStrength * 1.6 * 2).rounded() / 2
@@ -379,6 +395,10 @@ private struct ForestPixelPainter {
         local.context.translateBy(x: x.rounded(), y: y.rounded())
         local.context.scaleBy(x: scale, y: scale)
         local.oval(-17, -4, 34, 9, color: deep.opacity(0.13), step: 3)
+        if species == .birch || species == .willow || species == .ginkgo {
+            ForestNewTreePainter(context: local.context, canopySway: sway).paint(species: species, stage: 3)
+            return
+        }
         local.rect(-3, -29, 6, 30, bark)
         local.rect(0, -27, 2, 26, Color.pixel(0xA47D51))
         local.rect(-6, -2, 11, 3, bark)
@@ -389,7 +409,88 @@ private struct ForestPixelPainter {
         case .oak: local.oak()
         case .pine: local.pine()
         case .blossom: local.blossom()
+        case .birch, .willow, .ginkgo: break
         }
+    }
+
+    private func ecologyPond() {
+        // The front clearing stays open even when all 16 old tree sites are full.
+        oval(176, 187, 50, 18, color: Color.pixel(0x688E7A), step: 2)
+        oval(179, 188, 44, 14, color: Color.pixel(0x73AAA1), step: 2)
+        oval(181, 190, 38, 10, color: Color.pixel(0xA8C9B0), step: 2)
+        let ripple = sin(time * 0.58) > 0 ? 2.0 : 0.0
+        rect(188 + ripple, 194, 13, 1, Color.pixel(0xD3DFBB))
+        rect(206 - ripple, 197, 8, 1, Color.pixel(0xD3DFBB))
+        rect(204, 191, 8, 3, Color.pixel(0x5F8D65))
+        rect(208, 190, 4, 2, Color.pixel(0x8FB17B))
+        rect(211, 190, 2, 2, Color.pixel(0xD8B4A0))
+        for (index, x) in [176.0, 180, 223].enumerated() {
+            let sway = (sin(time * 0.7 + Double(index)) * climate.windStrength).rounded()
+            rect(x + sway, 181 + Double(index % 2), 1, 12, Color.pixel(0x688452))
+            rect(x - 1 + sway, 178 + Double(index % 2), 3, 5, Color.pixel(0x9B8155))
+            rect(x + 1 + sway, 185, 3, 1, Color.pixel(0x87A66C))
+        }
+        stone(x: 183, y: 202, width: 7)
+        stone(x: 219, y: 199, width: 6)
+    }
+
+    private func ecologyBridge() {
+        let shadow = Color.pixel(0x738678), stone = Color.pixel(0xAFB7A0)
+        let light = Color.pixel(0xDBD8BA)
+        // Crossing the front of the existing stream avoids both the old bench
+        // and planted tree roots. A visible water gap reads as a stone arch.
+        rect(116, 185, 42, 7, shadow)
+        rect(119, 181, 36, 7, stone)
+        rect(124, 179, 26, 4, light)
+        rect(116, 185, 8, 10, stone)
+        rect(151, 184, 7, 10, stone)
+        rect(127, 187, 22, 4, Color.pixel(0x80B6AE))
+        rect(132, 185, 12, 3, shadow)
+        rect(130, 188, 17, 2, Color.pixel(0xB8DAD0))
+        for x in [121.0, 129, 137, 145, 153] {
+            rect(x, 182, 1, 5, shadow.opacity(0.7))
+            rect(x + 1, 182, 5, 1, light)
+        }
+        rect(117, 189, 5, 2, light)
+        rect(153, 188, 4, 2, light)
+        rect(118, 196, 7, 2, shadow.opacity(0.5))
+        rect(150, 195, 8, 2, shadow.opacity(0.5))
+    }
+
+    private func ecologyVisitors() {
+        rabbit(x: 187, y: 197, scale: 0.88, phase: 0)
+        rabbit(x: 213, y: 194, scale: 1, phase: 3.4)
+        flowers(x: 231, y: 201, pink: false)
+    }
+
+    private func rabbit(x: Double, y: Double, scale: Double, phase: Double) {
+        let cycle = (time + phase).truncatingRemainder(dividingBy: 9)
+        let hop = cycle < 1.2 ? sin(cycle / 1.2 * .pi) : 0
+        var bunny = self
+        bunny.oval(x - 7 * scale, y - 1, 18 * scale, 3 * scale,
+                   color: deep.opacity(0.15), step: 1)
+        bunny.context.translateBy(x: (x + hop * 3).rounded(), y: (y - hop * 2).rounded())
+        bunny.context.scaleBy(x: scale, y: scale)
+        let outline = Color.pixel(0xB3AB94), fur = Color.pixel(0xF1E9D2)
+        let bright = Color.pixel(0xFFF5DE), pink = Color.pixel(0xD5A59A)
+        bunny.rect(-7, -9, 14, 8, outline)
+        bunny.rect(-7, -7, 16, 6, fur)
+        bunny.rect(-5, -10, 11, 8, fur)
+        bunny.rect(3, -14, 8, 9, outline)
+        bunny.rect(4, -14, 8, 8, fur)
+        bunny.rect(4, -22, 3, 11, outline)
+        bunny.rect(8, -23, 3, 11, outline)
+        bunny.rect(5, -21, 2, 9, bright)
+        bunny.rect(9, -22, 2, 9, bright)
+        bunny.rect(5, -20, 1, 6, pink)
+        bunny.rect(9, -21, 1, 6, pink)
+        bunny.rect(-9, -6, 4, 4, bright)
+        bunny.rect(-4, -3, 5, 3, bright)
+        bunny.rect(6, -3, 5, 3, bright)
+        let blink = sin(time * 0.73 + phase) > 0.975
+        bunny.rect(9, -11, 1, blink ? 1 : 2, Color.pixel(0x586353))
+        bunny.rect(12, -8, 1, 1, pink)
+        bunny.rect(6, -7, 2, 1, bright)
     }
 
     private func oak() {

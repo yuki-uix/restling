@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ForestSpecies: String, Codable, CaseIterable, Identifiable, Sendable {
-    case oak, pine, blossom
+    case oak, pine, blossom, birch, willow, ginkgo
 
     public var id: String { rawValue }
     public var title: String {
@@ -9,6 +9,9 @@ public enum ForestSpecies: String, Codable, CaseIterable, Identifiable, Sendable
         case .oak: return "橡树"
         case .pine: return "松树"
         case .blossom: return "樱花"
+        case .birch: return "白桦"
+        case .willow: return "垂柳"
+        case .ginkgo: return "银杏"
         }
     }
     public var unlockAfter: Int {
@@ -16,7 +19,26 @@ public enum ForestSpecies: String, Codable, CaseIterable, Identifiable, Sendable
         case .oak: return 0
         case .pine: return 3
         case .blossom: return 6
+        case .birch: return 12
+        case .willow: return 36
+        case .ginkgo: return 72
         }
+    }
+
+    public var catalogueDescription: String {
+        switch self {
+        case .oak: return "圆圆的树冠，浅绿里藏着一点阳光。它是这片森林最初的陪伴。"
+        case .pine: return "层层针叶，长成一座小小的绿色尖塔。让林间多一点清凉的深绿。"
+        case .blossom: return "柔粉的花冠，像一团轻轻落在枝头的云。给自己的森林留一点春天。"
+        case .birch: return "细白的树干带着深色斑纹，轻巧的树冠在枝头舒展。像一束留在林间的柔光。"
+        case .willow: return "长长的枝叶轻轻垂下，树冠像一把柔软的绿伞。让林地多一份慢慢晃动的安静。"
+        case .ginkgo: return "向上展开的扇形树冠，藏着温暖的金黄。让已经长大的森林，留下一片秋日的光。"
+        }
+    }
+
+    public var unlockStory: String {
+        unlockAfter == 0 ? "从第一片空地开始，就可以培育橡树。" :
+            "累计完成 \(unlockAfter) 次休息后，可以选择培育\(title)。"
     }
 }
 

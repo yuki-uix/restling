@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             index + 1 < args.count ? PomodoroPhase(rawValue: args[index + 1]) : nil
         } ?? .focus
         let testDefaults = uiTest ? UserDefaults(suiteName: "restling.ui.\(UUID().uuidString)") : nil
+        if let testDefaults { prepareUITestData(defaults: testDefaults, arguments: args) }
         model = AppModel(smokeTest: smokeTest, resumingRemaining: resumeSeconds,
                          completedFocusSessions: completed, resumingPhase: phase,
                          resumeRunning: !args.contains("--resume-paused"), defaults: testDefaults)
@@ -105,6 +106,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Disposable fixtures are available only inside the already isolated UI
+    /// test mode. Normal launches never seed a forest or change preferences.
+    private func prepareUITestData(defaults: UserDefaults, arguments: [String]) {
+        let preferences = ReminderPreferences(idlePauseEnabled: false, returnGraceSeconds: 0,
+                                             startSoundEnabled: false, endSoundEnabled: false)
+        defaults.set(try? JSONEncoder().encode(preferences), forKey: "reminderPreferences.v1")
+        guard let index = arguments.firstIndex(of: "--ui-test-rests"), index + 1 < arguments.count,
+              let count = Int(arguments[index + 1]), (0...200).contains(count) else { return }
+        var profile = ForestProfile(name: "生态验收森林")
+        let date = Date(timeIntervalSince1970: 1_793_347_200)
+        for number in 0..<count {
+            let eligible = ForestSpecies.allCases.filter { profile.isUnlocked($0) }
+            profile.selectedSpecies = eligible[(number / 3) % eligible.count]
+            profile.recordRest(id: UUID(), seconds: 20, date: date.addingTimeInterval(Double(number)))
+        }
+        if let speciesIndex = arguments.firstIndex(of: "--ui-test-species"), speciesIndex + 1 < arguments.count,
+           let species = ForestSpecies(rawValue: arguments[speciesIndex + 1]), profile.isUnlocked(species) {
+            profile.selectedSpecies = species
+        }
+        if let archive = try? ForestArchive(profiles: [profile], activeProfileID: profile.id),
+           let data = try? JSONEncoder().encode(archive) {
+            defaults.set(data, forKey: "forestProfiles.v1")
+        }
+    }
+
     private func createApplicationMenu() {
         // Standard responder actions also enable Command-Q/W and text-field
         // copy/paste in this programmatically-created accessory application.
@@ -114,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         appMenu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         appMenu.addItem(item("数据与备份…", #selector(showDataBackup)))
+        appMenu.addItem(item("林地手记…", #selector(showForestEcology)))
         appMenu.addItem(item("检查更新…", #selector(showUpdates)))
         appMenu.addItem(item("关闭窗口", #selector(closeMainWindow), key: "w"))
         appMenu.addItem(.separator())
@@ -168,6 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(previewItem)
         menu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         menu.addItem(item("数据与备份…", #selector(showDataBackup)))
+        menu.addItem(item("林地手记…", #selector(showForestEcology)))
         menu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         updateItem = item("检查更新…", #selector(showUpdates))
         menu.addItem(updateItem)
@@ -284,6 +312,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showDataBackup() {
         showMainWindow()
         NotificationCenter.default.post(name: .init("Restling.showDataBackup"), object: nil)
+    }
+    @objc private func showForestEcology() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .init("Restling.showForestEcology"), object: nil)
     }
     @objc private func willSleep() { model.willSleep() }
     @objc private func didWake() { model.didWake() }

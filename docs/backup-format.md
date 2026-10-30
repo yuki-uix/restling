@@ -24,6 +24,8 @@ The `forest` object contains `version: 2`, `profiles`, `activeProfileID`, `event
 
 When reading a valid version 1 local forest archive, the app preserves its original bytes and migrates the cumulative progress and trees. It starts an empty detailed event collection and records when that collection began. A profile's cumulative completed rests can therefore exceed its number of detailed completed events. Missing historical event dates are not reconstructed from tree dates or aggregate totals.
 
+Restling 0.11.0 retains this archive shape and the existing `oak`, `pine` and `blossom` values, and adds `birch`, `willow` and `ginkgo`. Existing valid backups remain readable in the new app. A backup that contains any new species requires Restling 0.11.0 or later; an older app cannot be assumed to read it. Ecological discoveries are derived from cumulative completed rests and their fixed grove locations, so they add no stored event or reward when an archive is imported or the app is upgraded.
+
 Each new terminal event contains:
 
 | Field | Meaning |

@@ -6,10 +6,12 @@ let project = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deleti
 let destination = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "/tmp/rest-forest-weather-refresh", isDirectory: true)
 let fm = FileManager.default
 try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+let cache = destination.appendingPathComponent("module-cache", isDirectory: true)
+try fm.createDirectory(at: cache, withIntermediateDirectories: true)
 func execute(_ arguments: [String]) throws {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-    process.arguments = arguments
+    process.arguments = [arguments[0], "-module-cache-path", cache.path] + arguments.dropFirst()
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else { throw NSError(domain: "WeatherPreview", code: Int(process.terminationStatus)) }
@@ -18,7 +20,8 @@ let coreSources = try fm.contentsOfDirectory(at: project.appendingPathComponent(
     .filter { $0.pathExtension == "swift" }.map(\.path).sorted()
 try execute(["swiftc", "-emit-module", "-emit-library", "-module-name", "PomodoroCore"] + coreSources +
             ["-o", destination.appendingPathComponent("libPomodoroCore.dylib").path])
-let painterSource = try String(contentsOf: project.appendingPathComponent("Sources/BreaktimeApp/ForestSceneView.swift"), encoding: .utf8)
+let treeSource = try String(contentsOf: project.appendingPathComponent("Sources/BreaktimeApp/ForestTreeArt.swift"), encoding: .utf8)
+let painterSource = treeSource + "\n" + (try String(contentsOf: project.appendingPathComponent("Sources/BreaktimeApp/ForestSceneView.swift"), encoding: .utf8))
 let harness = #"""
 
 import AppKit
