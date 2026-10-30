@@ -14,13 +14,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var startupUpdateTask: Task<Void, Never>?
     private var updateTimer: Timer?
     private var overlay: RestOverlayController!
+    private var prewarning: PrewarningController!
+    private var presence: PresenceMonitor?
+    private let loginItem = LoginItemController()
     private var phaseItem: NSMenuItem!
     private var forestItem: NSMenuItem!
     private var updateItem: NSMenuItem!
     private var toggleItem: NSMenuItem!
     private var nextItem: NSMenuItem!
+    private var dndItem: NSMenuItem!
+    private var resumeDNDItem: NSMenuItem!
+    private var snoozeItem: NSMenuItem!
+    private var previewItem: NSMenuItem!
     private var lastStatusTitle = ""
     private let smokeTest = CommandLine.arguments.contains("--smoke-test")
+    private let uiTest = CommandLine.arguments.contains("--ui-test")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
@@ -36,11 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let phase = phaseIndex.flatMap { index in
             index + 1 < args.count ? PomodoroPhase(rawValue: args[index + 1]) : nil
         } ?? .focus
+        let testDefaults = uiTest ? UserDefaults(suiteName: "restling.ui.\(UUID().uuidString)") : nil
         model = AppModel(smokeTest: smokeTest, resumingRemaining: resumeSeconds,
                          completedFocusSessions: completed, resumingPhase: phase,
-                         resumeRunning: !args.contains("--resume-paused"))
-        updater = UpdateChecker(configuration: smokeTest ? nil : UpdateConfiguration.fromBundle())
+                         resumeRunning: !args.contains("--resume-paused"), defaults: testDefaults)
+        updater = UpdateChecker(configuration: smokeTest || uiTest ? nil : UpdateConfiguration.fromBundle(),
+                                defaults: testDefaults ?? .standard)
         overlay = RestOverlayController(model: model)
+        prewarning = PrewarningController(model: model)
         createApplicationMenu()
         createMenu()
         updateObservation = updater.objectWillChange.sink { [weak self] in
@@ -49,16 +60,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.onUpdate = { [weak self] in self?.refresh() }
         model.onTransition = { [weak self] phase in
             if self?.smokeTest == true { print("SMOKE transition=\(phase.title)"); fflush(stdout) }
-            if phase != .focus { NSSound(named: "Glass")?.play() }
         }
+        model.onSound = { cue in NSSound(named: cue == .start ? "Glass" : "Tink")?.play() }
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         workspace.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        if !smokeTest {
+            presence = PresenceMonitor { [weak self] locked, idleSeconds, displaySleeping in
+                self?.model.updatePresence(locked: locked, idleSeconds: idleSeconds, displaySleeping: displaySleeping)
+            }
+            model.onUserInteraction = { [weak self] in self?.presence?.confirmUserInteraction() }
+            // Sample current lock/idle state before showing any restored overlay.
+            presence?.start()
+        }
         refresh()
         showMainWindow()
-        if !smokeTest {
+        if !smokeTest && !uiTest {
             startupUpdateTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard !Task.isCancelled else { return }
@@ -89,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appRoot = NSMenuItem()
         let appMenu = NSMenu(title: "Restling")
         appMenu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
+        appMenu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         appMenu.addItem(item("检查更新…", #selector(showUpdates)))
         appMenu.addItem(item("关闭窗口", #selector(closeMainWindow), key: "w"))
         appMenu.addItem(.separator())
@@ -124,8 +144,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         nextItem = item("现在休息", #selector(nextPhase))
         menu.addItem(nextItem)
         menu.addItem(item("重新开始用眼间隔", #selector(reset)))
+        snoozeItem = NSMenuItem(title: "推迟本次休息", action: nil, keyEquivalent: "")
+        let later = NSMenu()
+        later.addItem(item("3 分钟后休息", #selector(snoozeThree)))
+        later.addItem(item("5 分钟后休息", #selector(snoozeFive)))
+        snoozeItem.submenu = later
+        menu.addItem(snoozeItem)
+        dndItem = NSMenuItem(title: "临时勿扰", action: nil, keyEquivalent: "")
+        let quiet = NSMenu()
+        quiet.addItem(item("勿扰 30 分钟", #selector(pauseThirty)))
+        quiet.addItem(item("勿扰 1 小时", #selector(pauseSixty)))
+        resumeDNDItem = item("结束临时勿扰", #selector(endDoNotDisturb))
+        quiet.addItem(resumeDNDItem)
+        dndItem.submenu = quiet
+        menu.addItem(dndItem)
         menu.addItem(.separator())
-        menu.addItem(item("森林休息预览（20 秒）", #selector(preview)))
+        previewItem = item("森林休息预览（20 秒）", #selector(preview))
+        menu.addItem(previewItem)
+        menu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         menu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         updateItem = item("检查更新…", #selector(showUpdates))
         menu.addItem(updateItem)
@@ -142,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refresh() {
         let engine = model.engine
-        let text = clockText(engine.remaining)
+        let text = model.menuBarTitle
         if text != lastStatusTitle {
             statusItem.button?.title = text
             lastStatusTitle = text
@@ -154,16 +190,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.image = image
         statusItem.button?.imagePosition = .imageLeading
         statusItem.button?.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        statusItem.button?.toolTip = "Restling · \(engine.phase.title) · \(engine.isRunning ? "提醒已开启" : model.hasStarted ? "提醒已暂停" : "尚未开始")"
+        statusItem.button?.toolTip = "Restling · \(model.statusDescription)"
         if updater.shouldShowBanner, let release = updater.availableRelease {
             statusItem.button?.toolTip?.append(" · 新版本 \(release.version.description)")
             updateItem.title = "发现新版本 \(release.version.description)…"
         } else { updateItem.title = "检查更新…" }
-        phaseItem.title = "\(engine.phase == .focus ? "距下次休息" : "休息剩余") · \(text)"
+        phaseItem.title = model.statusDescription
         let forest = model.forest.current
         forestItem.title = "\(forest.name) · \(forest.trees.count) 棵树 · 再休息 \(forest.restsUntilTree) 次长成新树"
         toggleItem.title = model.toggleTitle
         nextItem.title = model.phaseActionTitle
+        nextItem.isEnabled = model.canRestNow
+        snoozeItem.isEnabled = model.canRestNow && !model.isPreview &&
+            (model.isPrewarningVisible || model.showingRest || model.isSnoozing)
+        previewItem.isEnabled = model.canPreview
+        resumeDNDItem.isEnabled = model.doNotDisturbUntil != nil
+        dndItem.title = model.doNotDisturbUntil == nil ? "临时勿扰" : model.menuBarTitle
+        prewarning.synchronize()
         let wasVisible = overlay.isVisible
         overlay.synchronize()
         if smokeTest && wasVisible != overlay.isVisible {
@@ -177,8 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             window.title = "Restling · 休息森林"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: MainView(model: model, updater: updater,
-                onShowUpdates: { [weak self] in self?.showUpdates() }, onboardingEnabled: !smokeTest))
+            window.contentView = NSHostingView(rootView: MainView(model: model, updater: updater, loginItem: loginItem,
+                onShowUpdates: { [weak self] in self?.showUpdates() }, onboardingEnabled: !smokeTest && !uiTest))
             window.center()
             mainWindow = window
         }
@@ -222,13 +265,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func nextPhase() { model.nextPhase() }
     @objc private func reset() { model.reset() }
     @objc private func preview() { model.preview() }
+    @objc private func pauseThirty() { model.pauseFor(minutes: 30) }
+    @objc private func pauseSixty() { model.pauseFor(minutes: 60) }
+    @objc private func endDoNotDisturb() { model.endDoNotDisturb() }
+    @objc private func snoozeThree() { model.snooze(minutes: 3) }
+    @objc private func snoozeFive() { model.snooze(minutes: 5) }
+    @objc private func showReminderSettings() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .init("Restling.showReminderSettings"), object: nil)
+    }
     @objc private func willSleep() { model.willSleep() }
     @objc private func didWake() { model.didWake() }
-    @objc private func screensChanged() { overlay.rebuildIfVisible() }
+    @objc private func screensChanged() {
+        overlay.rebuildIfVisible()
+        prewarning.close()
+        prewarning.synchronize()
+    }
     @objc private func quit() { NSApp.terminate(nil) }
 
     func applicationWillTerminate(_ notification: Notification) {
         model.stop()
+        presence?.stop()
+        prewarning.close()
         startupUpdateTask?.cancel()
         updateTimer?.invalidate()
         updateObservation?.cancel()

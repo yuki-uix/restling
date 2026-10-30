@@ -1,14 +1,22 @@
 # Restling privacy
 
-Applies to the Restling 0.8.0 community preview, published on 29 October 2026.
+Applies to the Restling 0.9.0 community preview.
 
 ## What stays on your Mac
 
-Restling stores forest profiles, tree species and growth, reminder settings, onboarding preferences, weather choices and update-check preferences in macOS UserDefaults. Cached update metadata may include the last check time, release notes and an ignored version.
+Restling stores forest profiles, tree species and growth, reminder settings, onboarding preferences, weather choices and update-check preferences in macOS UserDefaults. Reminder settings include selected weekdays and local hours, pre-warning, idle and return-grace choices, and sound preferences. The saved timer contains its remaining time, running/paused intention, any active rest's identifier and forest, and temporary do-not-disturb or snooze deadlines. Cached update metadata may include the last check time, release notes and an ignored version.
 
 There is no account system or cloud sync. Restling has no advertising, analytics, tracking SDKs or developer-operated data collection endpoint. It does not upload forest names, growth, timer activity or settings.
 
 The native frosted-glass break overlay does not capture or save screenshots. It needs no Screen Recording permission. Weather is generated locally and does not use your location.
+
+## Presence and login items
+
+To pause reminders while you are away, Restling reads the system's elapsed time since keyboard or mouse input, together with lock/session, display-sleep and system-sleep state. It does not record individual key presses, mouse events, typed content or screenshots. It does not use a camera or infer gaze. Idle-based pausing can be turned off in reminder settings; these presence signals are used locally and are not uploaded.
+
+Launch at login is optional and starts off until you enable it. Restling registers its own login item with macOS only after that control is changed. The system manages its registration and any approval; the app reads that status to show whether startup is enabled or needs attention. This setting applies immediately and is separate from saving or cancelling the other reminder preferences.
+
+Restoring a saved timer does not reconstruct offline activity or award forest growth for time while the app was not running. Completed rest counts describe completed timers, not verified gaze or health outcomes.
 
 ## Update requests
 

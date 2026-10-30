@@ -17,22 +17,22 @@ struct MainView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var forest: ForestStore
     @ObservedObject var updater: UpdateChecker
+    @ObservedObject var loginItem: LoginItemController
     private let onShowUpdates: () -> Void
     @State private var sheet: ForestMainSheet?
     @State private var profileName = ""
-    @State private var intervalMinutes = 20
-    @State private var restSeconds = 20
     @State private var selectedGroveIndex: Int?
     @State private var catalogueSpecies: ForestSpecies = .oak
     @AppStorage("forestWeatherPreference.v1") private var weatherChoice = "automatic"
     @AppStorage("restForestOnboarding.v1") private var hasSeenOnboarding = false
     private let onboardingEnabled: Bool
 
-    init(model: AppModel, updater: UpdateChecker, onShowUpdates: @escaping () -> Void,
+    init(model: AppModel, updater: UpdateChecker, loginItem: LoginItemController, onShowUpdates: @escaping () -> Void,
          onboardingEnabled: Bool = true) {
         self.model = model
         _forest = ObservedObject(wrappedValue: model.forest)
         self.updater = updater
+        self.loginItem = loginItem
         self.onShowUpdates = onShowUpdates
         self.onboardingEnabled = onboardingEnabled
     }
@@ -41,7 +41,6 @@ struct MainView: View {
     private var entireForest: ForestLandscape { ForestLandscape(profile: profile) }
     private var displayedGrove: Int { min(entireForest.currentGroveIndex, max(0, selectedGroveIndex ?? entireForest.currentGroveIndex)) }
     private var landscape: ForestLandscape { ForestLandscape(completedRests: entireForest.rests(inGrove: displayedGrove)) }
-    private var pendingSettings: EyeRestSettings { EyeRestSettings(intervalMinutes: intervalMinutes, restSeconds: restSeconds) }
     private var growthTitle: String {
         switch profile.growthStage {
         case 1: return profile.completedRests == 1 ? "第一抹绿，刚刚发芽" : "下一棵树，刚刚发芽"
@@ -98,6 +97,9 @@ struct MainView: View {
         }
         .onChange(of: profile.id) { _ in selectedGroveIndex = nil }
         .onChange(of: profile.completedRests) { _ in selectedGroveIndex = nil }
+        .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showReminderSettings"))) { _ in
+            sheet = .settings
+        }
     }
 
     private var header: some View {
@@ -149,12 +151,11 @@ struct MainView: View {
             }.buttonStyle(.plain)
                 .accessibilityLabel(updater.shouldShowBanner ? "发现新版本，查看更新说明" : "检查更新与版本信息")
             Button {
-                loadSettings()
                 sheet = .settings
             } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 16))
                     .frame(width: 30, height: 30)
-            }.buttonStyle(.plain).help("护眼节奏设置").accessibilityLabel("护眼节奏设置")
+            }.buttonStyle(.plain).help("提醒与节奏设置").accessibilityLabel("提醒与节奏设置")
         }.frame(height: 52)
     }
 
@@ -208,44 +209,61 @@ struct MainView: View {
     }
 
     private var timerCard: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label(model.engine.phase == .focus ? "距下次休息" : "休息中", systemImage: model.engine.phase.symbol)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Circle().fill(model.engine.isRunning ? forestAccent : forestMuted.opacity(0.45))
                     .frame(width: 6, height: 6)
-                Text(model.engine.isRunning ? (model.engine.phase == .focus ? "用眼中" : "休息中") : model.hasStarted ? "已暂停" : "尚未开始")
+                Text(model.isSnoozing ? "已推迟" : model.pauseReason != nil ? "暂缓中" :
+                    model.engine.isRunning ? (model.engine.phase == .focus ? "用眼中" : "休息中") : model.hasStarted ? "已暂停" : "尚未开始")
                     .font(.system(size: 10)).foregroundStyle(forestMuted)
             }
             Spacer(minLength: 0)
-            Text(clockText(model.engine.remaining))
+            Text(clockText(model.displayedRemaining))
                 .font(.system(size: 54, weight: .light, design: .rounded).monospacedDigit())
                 .minimumScaleFactor(0.6).lineLimit(1)
                 .frame(maxWidth: .infinity)
-                .accessibilityLabel("剩余 \(clockText(model.engine.remaining))")
+                .accessibilityLabel("剩余 \(clockText(model.displayedRemaining))")
             Text("每 \(model.eyeRestSettings.intervalMinutes) 分钟 · 放松 \(model.eyeRestSettings.restSeconds) 秒")
                 .font(.system(size: 11)).foregroundStyle(forestMuted)
                 .frame(maxWidth: .infinity)
             ProgressView(value: model.progress).tint(forestAccent)
             Spacer(minLength: 0)
-            Button(action: model.toggleRunning) {
-                Label(model.toggleTitle, systemImage: model.engine.isRunning ? "pause.fill" : "play.fill")
+            Button {
+                if model.doNotDisturbUntil != nil { model.endDoNotDisturb() }
+                else { model.toggleRunning() }
+            } label: {
+                Label(model.doNotDisturbUntil != nil ? "结束临时勿扰" : model.toggleTitle,
+                      systemImage: model.doNotDisturbUntil == nil && model.wantsRunning ? "pause.fill" : "play.fill")
                     .font(.system(size: 13, weight: .medium))
                     .frame(maxWidth: .infinity).padding(.vertical, 5)
             }.buttonStyle(.borderedProminent).controlSize(.large)
             HStack {
                 Button(model.phaseActionTitle, action: model.nextPhase)
+                    .disabled(!model.canRestNow)
                 Spacer()
                 Button("重置", action: model.reset)
             }.buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(forestMuted)
             Divider().overlay(forestAccent.opacity(0.05))
-            Text("抬头看看远处，休息结束后会自动返回。")
-                .font(.system(size: 10)).foregroundStyle(forestMuted)
-            Button(action: model.preview) {
-                Label("预览森林休息", systemImage: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 11)).frame(maxWidth: .infinity)
-            }.buttonStyle(.bordered).controlSize(.regular)
+            Text(model.statusDescription)
+                .font(.system(size: 11)).foregroundStyle(forestMuted).lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 25)
+            HStack {
+                Button(action: model.preview) {
+                    Label("预览休息", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 11))
+                }.disabled(!model.canPreview)
+                Menu {
+                    Button("勿扰 30 分钟") { model.pauseFor(minutes: 30) }
+                    Button("勿扰 1 小时") { model.pauseFor(minutes: 60) }
+                    if model.doNotDisturbUntil != nil {
+                        Divider()
+                        Button("结束临时勿扰", action: model.endDoNotDisturb)
+                    }
+                } label: { Label("勿扰", systemImage: "moon") }
+            }.buttonStyle(.bordered).controlSize(.small)
         }.padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.white.opacity(0.64), in: RoundedRectangle(cornerRadius: 22))
@@ -351,45 +369,7 @@ struct MainView: View {
     }
 
     private var settingsSheet: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("护眼节奏").font(.system(size: 21, weight: .semibold))
-                Text("默认每用眼 20 分钟，留 20 秒看向远处。")
-                    .font(.system(size: 12)).foregroundStyle(forestMuted)
-            }
-            Grid(horizontalSpacing: 24, verticalSpacing: 17) {
-                GridRow {
-                        setting("用眼间隔", value: $intervalMinutes, range: 1...120, unit: "分钟")
-                        setting("放松时长", value: $restSeconds, range: 5...180, unit: "秒")
-                }
-            }
-            Text("每次休息使用相同的时长。应用新节奏会重新开始本次计时，森林进度会保留。")
-                .font(.system(size: 11)).foregroundStyle(forestMuted).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Button("恢复 20 分钟 / 20 秒") { intervalMinutes = 20; restSeconds = 20 }
-                    .buttonStyle(.link).font(.system(size: 11))
-                Text("关闭主窗口后，菜单栏继续计时。")
-                    .font(.system(size: 10)).foregroundStyle(forestMuted)
-                Spacer()
-                Button("取消") { sheet = nil }.keyboardShortcut(.cancelAction)
-                Button("应用设置") {
-                    if pendingSettings != model.eyeRestSettings { model.applyEyeRestSettings(pendingSettings) }
-                    sheet = nil
-                }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            }
-        }.padding(28).frame(width: 590).background(forestPaper).tint(forestAccent)
-    }
-
-    private func setting(_ name: String, value: Binding<Int>, range: ClosedRange<Int>, unit: String) -> some View {
-        HStack(spacing: 6) {
-            Text(name).font(.system(size: 12)).lineLimit(1)
-            Spacer(minLength: 3)
-            TextField(name, value: value, format: .number)
-                .labelsHidden().textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing).frame(width: 42)
-            Text(unit).font(.system(size: 11)).foregroundStyle(forestMuted).frame(width: 25, alignment: .leading)
-            Stepper(name, value: value, in: range).labelsHidden().fixedSize()
-        }.frame(maxWidth: .infinity)
+        ReminderSettingsView(model: model, loginItem: loginItem, onClose: { sheet = nil })
     }
 
     private func profileSheet(_ kind: ForestMainSheet) -> some View {
@@ -413,10 +393,7 @@ struct MainView: View {
         }.padding(28).frame(width: 410).background(forestPaper).tint(forestAccent)
     }
 
-    private func loadSettings() {
-        intervalMinutes = model.eyeRestSettings.intervalMinutes
-        restSeconds = model.eyeRestSettings.restSeconds
-    }
+
 }
 
 /// Small, original block sprites keep the tree picker consistent with the pixel scene.

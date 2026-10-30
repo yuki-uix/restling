@@ -3,12 +3,19 @@ import XCTest
 
 final class AppModelTests: XCTestCase {
     @MainActor
-    func testExplicitUpdateHandoffPreservesActiveFocus() async {
-        let initial = AppModel()
+    private func isolatedDefaults() throws -> (String, UserDefaults) {
+        let suite = "AppModelTests." + UUID().uuidString
+        return (suite, try XCTUnwrap(UserDefaults(suiteName: suite)))
+    }
+
+    @MainActor
+    func testExplicitUpdateHandoffPreservesActiveFocus() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let initial = AppModel(defaults: defaults, startsTicker: false)
         let remaining = initial.engine.configuration.focusDuration / 2
         initial.stop()
-        let model = AppModel(resumingRemaining: remaining)
-        defer { model.stop() }
+        let model = AppModel(resumingRemaining: remaining, defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(model.engine.phase, .focus)
         XCTAssertEqual(model.engine.remaining, remaining)
         XCTAssertEqual(model.engine.completedFocusSessions, 0)
@@ -17,9 +24,11 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testHandoffKeepsFourthRoundAndNextLongBreak() async {
-        let model = AppModel(resumingRemaining: 1, completedFocusSessions: 3)
-        defer { model.stop() }
+    func testHandoffKeepsFourthRoundAndNextLongBreak() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let model = AppModel(resumingRemaining: 1, completedFocusSessions: 3,
+                             defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(model.currentRound, 4)
         XCTAssertEqual(model.engine.completedFocusSessions, 3)
         var resumed = model.engine
@@ -29,10 +38,12 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testHandoffPreservesPausedBreak() async {
+    func testHandoffPreservesPausedBreak() async throws {
+        let (suite, defaults) = try isolatedDefaults()
         let model = AppModel(resumingRemaining: 1, completedFocusSessions: 2,
-                             resumingPhase: .shortBreak, resumeRunning: false)
-        defer { model.stop() }
+                             resumingPhase: .shortBreak, resumeRunning: false,
+                             defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(model.engine.phase, .shortBreak)
         XCTAssertEqual(model.engine.remaining, 1)
         XCTAssertEqual(model.engine.completedFocusSessions, 2)
@@ -43,9 +54,10 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testSleepingResumesAnActiveSessionWithoutCountingSleep() async {
-        let model = AppModel(smokeTest: true)
-        defer { model.stop() }
+    func testSleepingResumesAnActiveSessionWithoutCountingSleep() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let model = AppModel(smokeTest: true, defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         model.toggleRunning()
         model.willSleep()
         let remaining = model.engine.remaining
@@ -60,9 +72,10 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testSleepingDoesNotStartAPausedSession() async {
-        let model = AppModel(smokeTest: true)
-        defer { model.stop() }
+    func testSleepingDoesNotStartAPausedSession() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let model = AppModel(smokeTest: true, defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         model.willSleep()
         model.didWake()
         XCTAssertFalse(model.engine.isRunning)
@@ -70,9 +83,10 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testClosingPreviewKeepsOriginalPhaseAndPausedState() async {
-        let model = AppModel(smokeTest: true)
-        defer { model.stop() }
+    func testClosingPreviewKeepsOriginalPhaseAndPausedState() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let model = AppModel(smokeTest: true, defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         let original = model.engine.remaining
         model.preview()
         XCTAssertTrue(model.showingRest)
@@ -85,9 +99,10 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
-    func testEarlyBreakAndEscapeReturnToFocusWithoutEarningCredit() async {
-        let model = AppModel(smokeTest: true)
-        defer { model.stop() }
+    func testEarlyBreakAndEscapeReturnToFocusWithoutEarningCredit() async throws {
+        let (suite, defaults) = try isolatedDefaults()
+        let model = AppModel(smokeTest: true, defaults: defaults, startsTicker: false)
+        defer { model.stop(); defaults.removePersistentDomain(forName: suite) }
         model.nextPhase()
         XCTAssertTrue(model.showingRest)
         XCTAssertEqual(model.engine.phase, .shortBreak)
