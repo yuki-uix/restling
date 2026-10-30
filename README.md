@@ -52,12 +52,16 @@ The bundle identifier remains `local.yuki.breaktime` so existing local forests f
 
 Feature planning and progress live in [Restling Projects](https://github.com/users/yuki-uix/projects/6/views/4) (sign in as `yuki-uix` to view the private project):
 
+- [Epic overview](https://github.com/users/yuki-uix/projects/6/views/8): five product goals with native sub-issue progress.
+- [Features by Epic](https://github.com/users/yuki-uix/projects/6/views/9): reminder experience (#1–#6), records and data protection (#7–#8), long-term forest ecology (#9–#10), cross-device companionship (#11), and trusted distribution (#12).
 - [Feature board](https://github.com/users/yuki-uix/projects/6/views/4): backlog → ready → in progress → validation → done.
 - [Feature schedule](https://github.com/users/yuki-uix/projects/6/views/5): Now / Next / Later / Parked / Shipped.
 - [Next iteration](https://github.com/users/yuki-uix/projects/6/views/6): [gentle pre-warning and snooze #1](https://github.com/yuki-uix/restling/issues/1), [working days and hours #2](https://github.com/yuki-uix/restling/issues/2), then [temporary do-not-disturb #3](https://github.com/yuki-uix/restling/issues/3).
 - [Version plan](https://github.com/users/yuki-uix/projects/6/views/7) and public [milestones](https://github.com/yuki-uix/restling/milestones): v0.9 for everyday reminders, then v0.10 for long-term forest growth and data foundations.
 
 Each issue includes acceptance criteria and dependencies. Now selects the next work; it does not mean implementation has started. Plan by version and sequence, then agree dates when an iteration starts. Move one item at a time into implementation and validation. Developer ID signing and notarization remain [parked #12](https://github.com/yuki-uix/restling/issues/12) until the developer membership and certificate are ready.
+
+Epics track product outcomes across versions; milestones stay on feature issues. Existing feature views exclude parent Epics so execution cards are not duplicated. Sub-issue progress covers the currently defined tasks; review each Epic's overall acceptance criteria before closing it. Cross-device scope research alone does not mean cross-device features have shipped. The four v0.8.0 baseline cards remain separate historical records.
 
 ## Build
 
