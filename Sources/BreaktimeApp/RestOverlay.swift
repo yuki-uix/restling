@@ -95,6 +95,7 @@ private struct RestView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var forest: ForestStore
     @AppStorage("forestWeatherPreference.v1") private var weatherChoice = "automatic"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(model: AppModel) {
         self.model = model
@@ -125,7 +126,8 @@ private struct RestView: View {
 
                     ForestSceneView(profile: profile, resting: true,
                                     progress: model.isPreview ? 1 - model.restRemaining / 20 : model.progress,
-                                    weather: ForestWeather(rawValue: weatherChoice))
+                                    weather: ForestWeather(rawValue: weatherChoice),
+                                    animationEnabled: false)
                         .frame(maxWidth: 1500, maxHeight: .infinity)
                         .accessibilityLabel("\(profile.name)，已有 \(profile.trees.count) 棵成长树木")
 
@@ -149,6 +151,17 @@ private struct RestView: View {
                 }
                 .padding(.horizontal, 28)
                 .foregroundStyle(ink)
+            }
+            .overlay {
+                // The translucent black layer also dims the native frosted
+                // material behind this transparent hosting view. It never
+                // intercepts Esc, buttons or accessibility navigation.
+                Color.black
+                    .opacity(model.restScreenDimming(reduceMotion: reduceMotion))
+                    .animation(reduceMotion ? nil : .linear(duration: 0.2),
+                               value: model.restScreenDimming(reduceMotion: reduceMotion))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             .contextMenu {
                 Text("剩余 \(clockText(model.restRemaining))")

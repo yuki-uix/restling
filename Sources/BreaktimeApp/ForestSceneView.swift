@@ -9,12 +9,15 @@ struct ForestSceneView: View {
     var progress: Double = 0
     var groveIndex: Int? = nil
     var weather: ForestWeather? = nil
+    var animationEnabled: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appearedAt = Date()
     @State private var previousOverride: ForestWeather?
     @State private var overrideTransitionFrom: ForestAtmosphere?
     @State private var overrideChangedAt = Date.distantPast
+
+    private var isStill: Bool { reduceMotion || !animationEnabled }
 
     private var totalLandscape: ForestLandscape { ForestLandscape(profile: profile) }
     private var displayedGroveIndex: Int {
@@ -30,9 +33,9 @@ struct ForestSceneView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: isStill)) { timeline in
             Canvas { context, size in
-                let elapsed = reduceMotion ? 0 : max(0, timeline.date.timeIntervalSince(appearedAt))
+                let elapsed = isStill ? 0 : max(0, timeline.date.timeIntervalSince(appearedAt))
                 var painter = ForestPixelPainter(context: context, size: size, time: elapsed,
                                                  seed: groveSeed, resting: resting,
                                                  climate: atmosphere(at: timeline.date))
@@ -47,7 +50,7 @@ struct ForestSceneView: View {
         .onChange(of: weather) { newValue in
             let now = Date()
             let old = targetAtmosphere(for: previousOverride, at: now)
-            if let from = overrideTransitionFrom, !reduceMotion {
+            if let from = overrideTransitionFrom, !isStill {
                 let fraction = min(1, max(0, now.timeIntervalSince(overrideChangedAt) / 2))
                 overrideTransitionFrom = ForestAtmosphere.blending(from: from, to: old, progress: fraction)
             } else { overrideTransitionFrom = old }
@@ -58,13 +61,13 @@ struct ForestSceneView: View {
 
     private func targetAtmosphere(for choice: ForestWeather?, at date: Date) -> ForestAtmosphere {
         if let choice { return ForestAtmosphere(weather: choice) }
-        let clock = reduceMotion ? appearedAt : date
+        let clock = isStill ? appearedAt : date
         return ForestAtmosphere.sample(at: clock.timeIntervalSinceReferenceDate, seed: profile.seed)
     }
 
     private func atmosphere(at date: Date) -> ForestAtmosphere {
         let target = targetAtmosphere(for: weather, at: date)
-        guard !reduceMotion, let from = overrideTransitionFrom else { return target }
+        guard !isStill, let from = overrideTransitionFrom else { return target }
         let fraction = min(1, max(0, date.timeIntervalSince(overrideChangedAt) / 2))
         let eased = fraction * fraction * (3 - 2 * fraction)
         return ForestAtmosphere.blending(from: from, to: target, progress: eased)

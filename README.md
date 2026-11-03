@@ -26,7 +26,7 @@ You can also download the app from [GitHub Releases](https://github.com/yuki-uix
 - Unlock pine and blossom trees after 3 and 6 completed breaks, then birch at 12, willow at 36 and ginkgo at 72. Every 3 breaks adds another tree; a full grove keeps its 16 trees and the next break begins another piece of land.
 - Browse all six species in the tree catalogue, including locked trees and their sprout, sapling and mature previews. Changing the species preserves the current growth stage and every tree already planted.
 - Enjoy sunlight, moving clouds, breeze and rain. Weather changes the atmosphere, not your progress; Reduce Motion freezes animation.
-- Rest behind a native frosted-glass overlay. There is nothing to feed or collect during the break. Press Esc to leave early; your existing forest stays safe.
+- Rest behind a native frosted-glass overlay. The whole rest screen gently dims by up to 12% and returns to its original brightness in a 10-second cycle; Reduce Motion keeps the original brightness. This is a local visual effect and does not change your Mac's display brightness. There is nothing to feed or collect during the break. Press Esc to leave early; your existing forest stays safe.
 - Keep separate local forest profiles. Previewing or skipping a break does not earn growth.
 
 The default rhythm is adjustable. This is a rest companion, with no streak penalty or withering trees.

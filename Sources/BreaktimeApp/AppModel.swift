@@ -195,6 +195,19 @@ final class AppModel: NSObject, ObservableObject {
     }
     var restRemaining: TimeInterval { previewRemaining ?? engine.remaining }
     var isPreview: Bool { previewRemaining != nil }
+    /// All screens share the elapsed time already credited to this rest. Using
+    /// the timer instead of a view's appearance date keeps pause, sleep, resume
+    /// and display rebuilds in phase without adding another clock or timer.
+    var restScreenElapsed: TimeInterval {
+        guard isPreview || engine.phase != .focus else { return 0 }
+        return max(0, (isPreview ? 20 : totalDuration) - restRemaining)
+    }
+
+    func restScreenDimming(reduceMotion: Bool = false) -> Double {
+        guard showingRest else { return 0 }
+        return RestScreenBreathing.opacity(at: restScreenElapsed, reduceMotion: reduceMotion)
+    }
+
     var restForestProfile: ForestProfile {
         guard !isPreview, let rest = restGrowthSession,
               let owner = forest.profiles.first(where: { $0.id == rest.profileID }) else { return forest.current }
