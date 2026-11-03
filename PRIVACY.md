@@ -1,6 +1,6 @@
 # Restling privacy
 
-Applies to the Restling 0.11.0 community preview.
+Applies to the Restling 0.12.0 community preview.
 
 ## What stays on your Mac
 
@@ -8,7 +8,7 @@ Restling stores forest profiles, tree species and growth, rest events, reminder 
 
 There is no account system or cloud sync. Restling has no advertising, analytics, tracking SDKs or developer-operated data collection endpoint. It does not upload forest names, growth, timer activity or settings.
 
-The native frosted-glass break overlay does not capture or save screenshots. It needs no Screen Recording permission. Weather is generated locally and does not use your location.
+The native frosted-glass break overlay does not capture or save screenshots. It needs no Screen Recording permission. Its gentle whole-screen dimming is rendered locally inside the rest window; it does not change the Mac's display brightness or request a new permission. Weather is generated locally and does not use your location.
 
 Tree species and ecological discoveries are derived locally from the existing cumulative rest total. The tree catalogue and “林地手记” do not collect browsing analytics or make network requests. The ecology additions introduce no new data collection, system permission or background task.
 
