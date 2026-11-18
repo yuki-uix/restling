@@ -28,13 +28,13 @@ final class ForestEventStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testNewStorePersistsAValidEmptyV2Archive() async throws {
+    func testNewStorePersistsAValidEmptyV3Archive() async throws {
         let f = try Fixture()
         defer { f.cleanup() }
         let store = f.store()
         let saved = try JSONDecoder().decode(ForestArchive.self,
             from: XCTUnwrap(f.defaults.data(forKey: "forestProfiles.v1")))
-        XCTAssertEqual(saved.version, 2)
+        XCTAssertEqual(saved.version, 3)
         XCTAssertEqual(saved.events, [])
         XCTAssertEqual(saved.recordingStartedAt, f.start)
         XCTAssertEqual(saved.profiles, store.profiles)
@@ -58,12 +58,18 @@ final class ForestEventStoreTests: XCTestCase {
         f.defaults.set(original, forKey: "forestProfiles.v1")
 
         let store = f.store()
-        XCTAssertEqual(store.profiles, [first, second])
-        XCTAssertEqual(store.current, first)
+        var migratedFirst = first
+        var migratedSecond = second
+        XCTAssertTrue(migratedFirst.enableWeeklyGrowth(at: f.start))
+        XCTAssertTrue(migratedSecond.enableWeeklyGrowth(at: f.start))
+        XCTAssertEqual(store.profiles, [migratedFirst, migratedSecond])
+        XCTAssertEqual(store.current, migratedFirst)
+        XCTAssertEqual(store.current.legacyTrees, first.trees)
+        XCTAssertTrue(store.current.weeklyJourney!.weeks.isEmpty)
         XCTAssertEqual(store.events, [])
         XCTAssertEqual(store.recordingStartedAt, f.start)
         XCTAssertEqual(f.defaults.data(forKey: "forestProfiles.v1.legacyV1Backup"), original)
-        XCTAssertEqual(try store.snapshot().version, 2)
+        XCTAssertEqual(try store.snapshot().version, 3)
         // A replay from an old timer remains a duplicate, not a new historical row.
         XCTAssertFalse(store.completeRest(profileID: first.id, id: oldIDs[0], seconds: 20))
         XCTAssertFalse(store.skipRest(profileID: first.id, id: oldIDs[0], seconds: 20))
@@ -71,7 +77,7 @@ final class ForestEventStoreTests: XCTestCase {
         XCTAssertEqual(store.current.completedRests, 7)
 
         let restored = ForestStore(defaults: f.defaults, now: { f.start.addingTimeInterval(1_000) })
-        XCTAssertEqual(restored.profiles, [first, second])
+        XCTAssertEqual(restored.profiles, [migratedFirst, migratedSecond])
         XCTAssertEqual(restored.recordingStartedAt, f.start)
         XCTAssertEqual(restored.events, [])
         XCTAssertEqual(f.defaults.data(forKey: "forestProfiles.v1.legacyV1Backup"), original)

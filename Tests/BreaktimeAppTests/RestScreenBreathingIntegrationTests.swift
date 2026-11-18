@@ -30,7 +30,6 @@ final class RestScreenBreathingIntegrationTests: XCTestCase {
                 XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
                                                 date: clock.date.addingTimeInterval(-60)))
             }
-            baseline = profile
             defaults.set(try JSONEncoder().encode(ForestArchive(profiles: [profile],
                 activeProfileID: profile.id, recordingStartedAt: clock.date)), forKey: "forestProfiles.v1")
             defaults.set(try JSONEncoder().encode(EyeRestSettings(intervalMinutes: 1,
@@ -38,6 +37,11 @@ final class RestScreenBreathingIntegrationTests: XCTestCase {
             defaults.set(try JSONEncoder().encode(ReminderPreferences(idlePauseEnabled: false,
                 returnGraceSeconds: 0, startSoundEnabled: false, endSoundEnabled: false)),
                 forKey: "reminderPreferences.v1")
+            // Keep the input a genuine old archive without weekly fields; only
+            // the expected production snapshot gains the explicit migration.
+            var migratedBaseline = profile
+            XCTAssertTrue(migratedBaseline.enableWeeklyGrowth(at: clock.date))
+            baseline = migratedBaseline
             model = AppModel(defaults: defaults, now: { clock.date }, startsTicker: false)
         }
 

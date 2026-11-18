@@ -175,6 +175,24 @@ struct ForestAchievementBadge: View {
             case .tenMinutes: hourglass(1)
             case .oneHour: hourglass(2)
             case .threeHours: hourglass(3)
+            case .fourWeeks, .twelveWeeks, .twentySixWeeks:
+                pixel(6, 5, 6, 13, brown)
+                pixel(12, 5, 6, 13, gold)
+                pixel(7, 6, 4, 11, cream)
+                pixel(13, 6, 4, 11, cream)
+                pixel(11, 6, 2, 12, deepGreen)
+                let rows = achievement == .fourWeeks ? 1 : achievement == .twelveWeeks ? 2 : 3
+                for row in 0..<rows {
+                    pixel(8, 8 + row * 3, 2, 1, green)
+                    pixel(14, 9 + row * 3, 2, 1, pink)
+                }
+                pixel(8, 19, 8, 1, lightGreen)
+            case .mixedGrove:
+                tree(7, 11, green, true)
+                tree(17, 11, gold, true)
+                tree(12, 13, pink, true)
+                pixel(10, 18, 1, 1, deepGreen)
+                pixel(13, 18, 1, 1, deepGreen)
             }
             if isUnlocked {
                 pixel(19, 2, 1, 3, gold)

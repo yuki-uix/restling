@@ -9,33 +9,23 @@ final class ForestStore: ObservableObject {
         let id: UUID
         let profileID: UUID
         let completedRests: Int
+        let didGrowTree: Bool
+        let startedNewWeek: Bool
+        let growthCount: Int
+        let growthTarget: Int
+        let newDiscoveries: [ForestEcologyMilestone]
 
         var title: String {
-            if let milestone = ForestEcology.milestone(at: completedRests) {
-                switch milestone {
-                case .pond: return "池塘，留住了一点天光。"
-                case .bridge: return "溪流上，多了一座石桥。"
-                case .visitors: return "林间来了新朋友。"
-                }
-            }
+            if let discovery = newDiscoveries.first { return discovery.title + "，来到森林了。" }
+            if didGrowTree { return "一棵树，留在了这一周。" }
             if completedRests == 1 { return "你的森林，发芽了。" }
-            if completedRests % ForestLandscape.restsPerGrove == 1 { return "新的林地，发芽了。" }
-            if completedRests % ForestLandscape.restsPerGrove == 0 { return "这片林地，长满了。" }
-            return completedRests % 3 == 0 ? "一棵树留下来了。" : "小树又长大了一点。"
+            if startedNewWeek { return "这一周，也留下了一点绿。" }
+            return "给小树，添了一点养分。"
         }
         var detail: String {
-            if let milestone = ForestEcology.milestone(at: completedRests) {
-                switch milestone {
-                case .pond: return "池塘已留在第 1 片林地，垂柳也已解锁。"
-                case .bridge: return "第 2 片林地架起了石桥，银杏也已解锁。"
-                case .visitors: return "小兔子在第 3 片林地等你，林地手记里可以回看。"
-                }
-            }
-            if completedRests == ForestSpecies.birch.unlockAfter { return "白桦已解锁，图鉴里可以看看它的三个成长阶段。" }
-            if completedRests == 1 { return "刚刚的休息，留下了第一抹绿。" }
-            if completedRests % ForestLandscape.restsPerGrove == 1 { return "上一片森林依然在这里，新的休息会让这里继续生长。" }
-            if completedRests % ForestLandscape.restsPerGrove == 0 { return "下一次休息，会为新的土地添一点绿。" }
-            return completedRests % 3 == 0 ? "林地也宽了一点。下次休息，再添一点生机。" : "每一次把视线放远，都在为这里添一点生机。"
+            if !newDiscoveries.isEmpty { return "新的生态风景已经留下，休息后可以去林地手记看看。" }
+            if didGrowTree { return "它会一直留在本周森林。下一棵树，慢慢培育二十四次休息。" }
+            return "本轮滋养 \(growthCount) / \(growthTarget)；未成熟的植物会跨周继续培育。"
         }
     }
     @Published private(set) var profiles: [ForestProfile]
@@ -44,6 +34,11 @@ final class ForestStore: ObservableObject {
     @Published private(set) var recordingStartedAt: Date
     @Published private(set) var errorMessage: String?
     @Published private(set) var latestRestReward: RestReward?
+
+    @Published private(set) var displayDate: Date
+    private let clock: () -> Date
+    private let fixedCalendar: Calendar?
+    private var activeCalendar: Calendar { fixedCalendar ?? .current }
 
     private let defaults: UserDefaults
     private let storageKey: String
@@ -56,18 +51,27 @@ final class ForestStore: ObservableObject {
     }
 
     init(defaults: UserDefaults = .standard, storageKey: String = "forestProfiles.v1",
-         now: () -> Date = Date.init) {
+         now: @escaping () -> Date = Date.init, calendar: Calendar? = nil) {
         self.defaults = defaults
         self.storageKey = storageKey
-        let profile = ForestProfile(name: "我的森林")
+        self.clock = now
+        self.fixedCalendar = calendar
+        let candidateDate = now()
+        let startedAt = ForestWeek.containing(candidateDate, calendar: calendar ?? .current) != nil ? candidateDate : Date()
+        displayDate = startedAt
+        var profile = ForestProfile(name: "我的森林")
+        profile.enableWeeklyGrowth(at: startedAt, calendar: calendar ?? .current)
         profiles = [profile]
         activeProfileID = profile.id
         events = []
-        let startedAt = now()
-        recordingStartedAt = startedAt.timeIntervalSinceReferenceDate.isFinite ? startedAt : Date()
+        recordingStartedAt = startedAt
         if let data = defaults.data(forKey: storageKey) {
             if let saved = try? JSONDecoder().decode(ForestArchive.self, from: data) {
                 apply(saved)
+                if saved.profiles.contains(where: { $0.weeklyJourney == nil }) {
+                    preserveOriginal(data, primaryKey: storageKey + ".legacyV2Backup")
+                    saveCurrent()
+                }
                 return
             }
             if let legacy = try? JSONDecoder().decode(LegacyArchive.self, from: data),
@@ -80,6 +84,7 @@ final class ForestStore: ObservableObject {
                 preserveOriginal(data, primaryKey: storageKey + ".legacyV1Backup")
                 defaults.set(encoded, forKey: storageKey)
                 apply(migrated)
+                saveCurrent()
                 return
             }
             // Keep the original bytes for recovery; do not silently overwrite them.
@@ -93,6 +98,36 @@ final class ForestStore: ObservableObject {
     var current: ForestProfile {
         // Every mutation keeps a nonempty profile collection and a valid selection.
         profiles.first(where: { $0.id == activeProfileID }) ?? profiles[0]
+    }
+
+    var currentWeek: ForestWeek? {
+        current.weeklyJourney?.displayWeek(at: displayDate, calendar: activeCalendar)
+    }
+
+    /// The existing application ticker refreshes this presentation date. No
+    /// empty week is persisted and no progress is awarded by viewing a new week.
+    func refreshWeek(at date: Date? = nil) {
+        let next = date ?? clock()
+        guard ForestWeek.containing(next, calendar: activeCalendar) != nil else { return }
+        let previous = current.weeklyJourney?.displayWeek(at: displayDate, calendar: activeCalendar)
+        let incoming = current.weeklyJourney?.displayWeek(at: next, calendar: activeCalendar)
+        if previous?.id != incoming?.id || previous?.timeZoneIdentifier != incoming?.timeZoneIdentifier {
+            displayDate = next
+        }
+    }
+
+    @discardableResult
+    func moveTree(id: UUID, to slot: Int) -> Bool {
+        guard canSafelyReplace, let week = currentWeek,
+              let index = profiles.firstIndex(where: { $0.id == activeProfileID }) else { return false }
+        var candidate = profiles
+        guard candidate[index].moveTree(id: id, to: slot, inWeekID: week.id,
+                                        at: clock(), calendar: activeCalendar) else { return false }
+        do {
+            try commit(ForestArchive(profiles: candidate, activeProfileID: activeProfileID,
+                                     events: events, recordingStartedAt: recordingStartedAt))
+            return true
+        } catch { reportSaveFailure(); return false }
     }
 
     /// A backup coordinator must preserve unreadable original bytes rather than
@@ -129,7 +164,8 @@ final class ForestStore: ObservableObject {
            (try? ForestArchive(profiles: legacy.profiles, activeProfileID: legacy.activeProfileID)) != nil {
             throw ForestDataError.invalid("这份旧森林存档可以读取，不能按损坏原件恢复。")
         }
-        let profile = ForestProfile(name: "我的森林")
+        var profile = ForestProfile(name: "我的森林")
+        profile.enableWeeklyGrowth(at: clock(), calendar: activeCalendar)
         let fallback = try ForestArchive(profiles: [profile], activeProfileID: profile.id)
         // Check that the temporary presentation state is also encodable before
         // replacing anything. Its bytes are never written over the original.
@@ -142,7 +178,8 @@ final class ForestStore: ObservableObject {
     }
 
     func createProfile(name: String) {
-        let profile = ForestProfile(name: name)
+        var profile = ForestProfile(name: name)
+        profile.enableWeeklyGrowth(at: clock(), calendar: activeCalendar)
         save(profiles: profiles + [profile], activeProfileID: profile.id)
     }
 
@@ -171,15 +208,25 @@ final class ForestStore: ObservableObject {
         guard canSafelyReplace, let index = profiles.firstIndex(where: { $0.id == profileID }),
               !hasRecordedRest(id) else { return false }
         var candidate = profiles
-        guard candidate[index].recordRest(id: id, seconds: seconds, date: date) else { return false }
+        let before = candidate[index]
+        candidate[index].enableWeeklyGrowth(at: date, calendar: activeCalendar)
+        guard candidate[index].recordRest(id: id, seconds: seconds, date: date, calendar: activeCalendar) else { return false }
+        let after = candidate[index]
         let event = ForestRestEvent(id: id, profileID: profileID, occurredAt: date,
                                     configuredSeconds: seconds, outcome: .completed)
         do {
             let archive = try ForestArchive(profiles: candidate, activeProfileID: activeProfileID,
                 events: events + [event], recordingStartedAt: recordingStartedAt)
             try commit(archive)
+            refreshWeek(at: date)
             latestRestReward = RestReward(id: id, profileID: profileID,
-                                         completedRests: candidate[index].completedRests)
+                completedRests: after.completedRests,
+                didGrowTree: after.trees.count > before.trees.count,
+                startedNewWeek: after.weeklyJourney?.weeks.count != before.weeklyJourney?.weeks.count,
+                growthCount: after.growthCount, growthTarget: after.growthTarget,
+                newDiscoveries: ForestEcology(profile: after).unlockedMilestones.filter {
+                    !ForestEcology(profile: before).isUnlocked($0)
+                })
             return true
         } catch {
             reportSaveFailure()
@@ -224,7 +271,18 @@ final class ForestStore: ObservableObject {
 
     private func commit(_ archive: ForestArchive) throws {
         try archive.validate()
-        let encoded = try JSONEncoder().encode(archive)
+        let normalized: ForestArchive
+        if archive.profiles.contains(where: { $0.weeklyJourney == nil }) {
+            let date = clock()
+            let migrated = archive.profiles.map { value -> ForestProfile in
+                var profile = value
+                profile.enableWeeklyGrowth(at: date, calendar: activeCalendar)
+                return profile
+            }
+            normalized = try ForestArchive(profiles: migrated, activeProfileID: archive.activeProfileID,
+                events: archive.events, recordingStartedAt: archive.recordingStartedAt)
+        } else { normalized = archive }
+        let encoded = try JSONEncoder().encode(normalized)
         if let unreadableOriginal {
             preserveOriginal(unreadableOriginal, primaryKey: storageKey + ".unreadableBackup")
         }
@@ -232,7 +290,8 @@ final class ForestStore: ObservableObject {
         // persist growth without its event (or an event without its growth).
         defaults.set(encoded, forKey: storageKey)
         unreadableOriginal = nil
-        apply(archive)
+        apply(normalized)
+        refreshWeek()
         errorMessage = nil
     }
 

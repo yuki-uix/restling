@@ -1,6 +1,6 @@
 # Restling privacy
 
-Applies to the Restling 0.13.0 community preview.
+Applies to the Restling 0.14.0 community preview.
 
 ## What stays on your Mac
 
@@ -10,9 +10,11 @@ There is no account system or cloud sync. Restling has no advertising, analytics
 
 The native frosted-glass break overlay does not capture or save screenshots. It needs no Screen Recording permission. Its gentle whole-screen dimming is rendered locally inside the rest window; it does not change the Mac's display brightness or request a new permission. Weather is generated locally and does not use your location.
 
-Tree species and ecological discoveries are derived locally from the existing cumulative rest total. The tree catalogue and “林地手记” do not collect browsing analytics or make network requests. The ecology additions introduce no new data collection, system permission or background task.
+Weekly forests add local records for a week's Monday–Sunday date range, its original timezone identifier, completed-rest and mature-tree IDs, accumulated completed-timer duration, last cultivation stage/species, and tree positions. A preserved baseline retains older totals and trees as “最初的森林”. These records are stored with the existing forest archive. Old event or tree dates are not used to invent earlier weeks. Thumbnails are drawn locally from forest data; they are not captured screenshots. The timezone is used for date ranges, without a location lookup or location permission.
 
-The 18 “森林足迹” achievements are calculated locally from the current forest's existing completed-rest total, cumulative completed-timer duration and mature trees. They introduce no achievement ledger, unlock timestamps, new rest events or browsing analytics. Different local forests are evaluated separately; restoring a backup shows the achievements supported by the restored snapshot. Viewing achievements does not record a rest or change growth. Day-and-hour restrictions remain optional, and turning the restriction off retains the saved day and time selections without enabling any new monitoring.
+The 22 “森林足迹” achievements and ecological discoveries are calculated locally from the current profile's totals, actual mature trees, recorded weeks and preserved old baseline. There is no achievement-claim ledger, unlock timestamp or browsing analytics. Different local forest profiles are evaluated separately; restoring a backup shows the achievements supported by the restored snapshot. The catalogue, yearbook, footprints and “林地手记” make no network requests. Viewing them does not create a rest record or growth. Editing the current week's layout saves positions, not a new reward or event; historical forests are read-only.
+
+Opening a new week's empty forest does not save an attendance entry. Only real completed rests create weekly history, including weeks without a mature tree. A clock or timezone rollback does not reopen archived weeks for new growth. Weekly cultivation reuses the existing application ticker for its display; it adds no system permission, external service or monitoring. Day-and-hour restrictions remain optional, and turning the restriction off retains the saved day and time selections.
 
 ## Presence and login items
 
@@ -24,7 +26,7 @@ Restoring a saved timer does not reconstruct offline activity or award forest gr
 
 ## Backup files and recovery
 
-The “数据与备份” window can export all forests, trees, event records and portable settings to a versioned JSON file you choose. The export includes rhythm, reminder choices, weather, onboarding and the automatic update-check preference. It excludes the running timer, temporary snooze/DND deadlines, macOS login-item registration and update caches.
+The “数据与备份” window can export all forests, weekly records and timezone identifiers, layouts, cultivation state, preserved old baseline, trees, event records and portable settings to a versioned JSON file you choose. The export includes rhythm, reminder choices, weather, onboarding and the automatic update-check preference. It excludes the running timer, temporary snooze/DND deadlines, macOS login-item registration and update caches. Weekly forest archives use version 3 inside backup envelope version 1 and require Restling 0.14.0 or later; valid older backups remain readable by this version.
 
 Exported JSON is readable and unencrypted. It can contain forest names, settings and rest timestamps. Restling does not upload the file. If you choose a folder managed by iCloud Drive or another sync service, that service handles the file according to its own settings.
 

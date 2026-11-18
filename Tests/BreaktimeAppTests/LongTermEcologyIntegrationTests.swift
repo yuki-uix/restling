@@ -15,7 +15,10 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
         let suite: String
         let defaults: UserDefaults
         let clock: Clock
+        let legacyBaseline: ForestProfile
         let baseline: ForestProfile
+        let baselineEvents: [ForestRestEvent]
+        let calendar: Calendar
         let model: AppModel
         private var restoredModels: [AppModel] = []
 
@@ -25,23 +28,40 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
             let activeProfileID: UUID
         }
 
-        init(completedRests: Int, legacy: Bool = false) throws {
+        init(completedRests: Int, legacy: Bool = false, recordedWeeks: Int = 0) throws {
             suite = "LongTermEcologyIntegrationTests." + UUID().uuidString
             defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
             let clock = Clock()
             self.clock = clock
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+            self.calendar = calendar
             var profile = ForestProfile(name: "保留下来的森林")
             for _ in 0..<completedRests {
                 XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
                                                 date: clock.date.addingTimeInterval(-86_400)))
             }
-            baseline = profile
+            legacyBaseline = profile
+            var seededEvents: [ForestRestEvent] = []
+            if recordedWeeks > 0 {
+                precondition(!legacy, "A version 1 fixture must remain a true legacy profile")
+                let start = clock.date.addingTimeInterval(-Double(recordedWeeks * 14) * 86_400)
+                XCTAssertTrue(profile.enableWeeklyGrowth(at: start, calendar: calendar))
+                for index in 0..<recordedWeeks {
+                    let date = start.addingTimeInterval(Double(index * 14) * 86_400)
+                    let id = UUID()
+                    XCTAssertTrue(profile.recordRest(id: id, seconds: 20, date: date, calendar: calendar))
+                    seededEvents.append(ForestRestEvent(id: id, profileID: profile.id,
+                        occurredAt: date, configuredSeconds: 20, outcome: .completed))
+                }
+            }
+            baselineEvents = seededEvents
             let archiveData: Data
             if legacy {
                 archiveData = try JSONEncoder().encode(LegacyArchive(profiles: [profile], activeProfileID: profile.id))
             } else {
                 archiveData = try JSONEncoder().encode(ForestArchive(profiles: [profile],
-                    activeProfileID: profile.id, recordingStartedAt: clock.date))
+                    activeProfileID: profile.id, events: seededEvents, recordingStartedAt: clock.date))
             }
             defaults.set(archiveData, forKey: "forestProfiles.v1")
             defaults.set(try JSONEncoder().encode(EyeRestSettings(intervalMinutes: 1, restSeconds: 5)),
@@ -49,12 +69,20 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
             defaults.set(try JSONEncoder().encode(ReminderPreferences(idlePauseEnabled: false,
                 returnGraceSeconds: 0, startSoundEnabled: false, endSoundEnabled: false)),
                          forKey: "reminderPreferences.v1")
-            model = AppModel(defaults: defaults, now: { clock.date }, startsTicker: false)
+            var expected = profile
+            if expected.weeklyJourney == nil {
+                XCTAssertTrue(expected.enableWeeklyGrowth(at: clock.date, calendar: calendar))
+            }
+            baseline = expected
+            let model = AppModel(defaults: defaults, now: { clock.date }, calendar: calendar, startsTicker: false)
+            self.model = model
+            XCTAssertEqual(model.forest.current, expected)
+            XCTAssertEqual(model.forest.current.legacyTrees, legacyBaseline.trees)
         }
 
         func restore() -> AppModel {
             let clock = self.clock
-            let restored = AppModel(defaults: defaults, now: { clock.date }, startsTicker: false)
+            let restored = AppModel(defaults: defaults, now: { clock.date }, calendar: calendar, startsTicker: false)
             restoredModels.append(restored)
             return restored
         }
@@ -82,65 +110,74 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testOnlyNaturalCompletionAtEachThresholdCreatesOneDiscoveryRewardAndOneEvent() async throws {
+    func testOnlyNaturalCompletionInTheRequiredWeekCreatesOneDiscoveryAndOneEvent() async throws {
         for milestone in ForestEcologyMilestone.allCases {
-            let f = try Fixture(completedRests: milestone.unlockAfter - 1)
+            let f = try Fixture(completedRests: milestone.unlockAfter - 1,
+                                recordedWeeks: milestone.weeklyUnlockAfter - 1)
             defer { f.cleanup() }
-            let oldTrees = f.baseline.trees
-            let seed = f.baseline.seed
+            let before = f.baseline
+            let oldTrees = before.trees
+            let seedIDs = f.baselineEvents.map(\.id)
+            XCTAssertFalse(ForestEcology(profile: before).isUnlocked(milestone))
             XCTAssertNil(f.model.forest.latestRestReward)
             f.model.nextPhase()
             let id = try f.restID()
             f.clock.advance(4)
             f.model.advanceTimer(by: 4)
             XCTAssertFalse(ForestEcology(profile: f.model.forest.current).isUnlocked(milestone))
+            XCTAssertEqual(f.model.forest.current, before)
             XCTAssertNil(f.model.forest.latestRestReward)
-            XCTAssertTrue(f.model.forest.events.isEmpty)
+            XCTAssertEqual(f.model.forest.events.map(\.id), seedIDs)
 
             f.clock.advance(1)
             f.model.advanceTimer(by: 1)
             let current = f.model.forest.current
             let reward = try XCTUnwrap(f.model.forest.latestRestReward)
-            XCTAssertEqual(current.completedRests, milestone.unlockAfter)
-            XCTAssertEqual(Array(current.trees.dropLast()), oldTrees)
-            XCTAssertEqual(current.seed, seed)
-            XCTAssertEqual(current.trees.last?.id, id)
+            XCTAssertEqual(current.completedRests, before.completedRests + 1)
+            XCTAssertEqual(current.totalRestSeconds, before.totalRestSeconds + 5)
+            XCTAssertEqual(current.legacyTrees, f.legacyBaseline.trees)
+            XCTAssertEqual(Array(current.trees.prefix(oldTrees.count)), oldTrees)
+            XCTAssertEqual(current.trees.count, oldTrees.count + (reward.didGrowTree ? 1 : 0))
+            XCTAssertEqual(current.seed, before.seed)
             XCTAssertEqual(reward.id, id)
-            XCTAssertEqual(reward.profileID, f.baseline.id)
-            XCTAssertEqual(reward.completedRests, milestone.unlockAfter)
-            XCTAssertTrue(reward.detail.contains(milestone == .visitors ? "兔子" : milestone.title))
-            XCTAssertTrue(reward.detail.contains("第 \(milestone.groveIndex + 1) 片"))
-            XCTAssertEqual(ForestEcology.milestone(at: reward.completedRests), milestone)
-            XCTAssertTrue(ForestEcology(profile: current).isUnlocked(milestone))
-            XCTAssertEqual(f.model.forest.events.map(\.id), [id])
-            XCTAssertEqual(f.model.forest.events.map(\.outcome), [.completed])
+            XCTAssertEqual(reward.profileID, before.id)
+            XCTAssertEqual(reward.completedRests, current.completedRests)
+            XCTAssertEqual(reward.newDiscoveries, [milestone])
+            XCTAssertTrue(reward.title.contains(milestone.title))
+            let week = try XCTUnwrap(current.weeklyJourney?.weeks.last)
+            XCTAssertEqual(current.weeklyJourney?.weeks.count, milestone.weeklyUnlockAfter)
+            XCTAssertEqual(week.restIDs, [id])
+            XCTAssertEqual(week.totalRestSeconds, 5)
+            XCTAssertEqual(ForestEcology(profile: current).location(for: milestone), .week(week.id))
+            XCTAssertEqual(f.model.forest.events.map(\.id), seedIDs + [id])
+            XCTAssertTrue(f.model.forest.events.allSatisfy { $0.outcome == .completed })
             XCTAssertFalse(f.model.forest.completeRest(profileID: current.id, id: id, seconds: 5,
                                                      date: f.clock.date))
             f.model.refreshEligibility()
             f.model.advanceTimer(by: 0)
             XCTAssertEqual(f.model.forest.current, current)
-            XCTAssertEqual(f.model.forest.events.count, 1)
-            XCTAssertEqual(f.model.forest.latestRestReward?.id, reward.id)
+            XCTAssertEqual(f.model.forest.events.count, seedIDs.count + 1)
+            XCTAssertEqual(f.model.forest.latestRestReward?.id, id)
         }
     }
 
     @MainActor
     func testPreviewSkipAndSnoozeDoNotUnlockAPondWithoutACompletedRest() async throws {
         for action in ["preview", "skip", "snooze"] {
-            let f = try Fixture(completedRests: 35)
+            let f = try Fixture(completedRests: 35, recordedWeeks: 2)
             defer { f.cleanup() }
             switch action {
             case "preview":
                 f.model.preview()
                 f.clock.advance(20)
                 f.model.advanceTimer(by: 20)
-                XCTAssertTrue(f.model.forest.events.isEmpty)
+                XCTAssertEqual(f.model.forest.events, f.baselineEvents)
             case "skip":
                 f.model.nextPhase()
                 f.clock.advance(2)
                 f.model.advanceTimer(by: 2)
                 f.model.dismissRest()
-                XCTAssertEqual(f.model.forest.events.map(\.outcome), [.skipped])
+                XCTAssertEqual(f.model.forest.events.map(\.outcome), [.completed, .completed, .skipped])
             default:
                 f.model.nextPhase()
                 f.clock.advance(2)
@@ -150,11 +187,12 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
                 f.model.refreshEligibility()
                 XCTAssertTrue(f.model.showingRest)
                 XCTAssertEqual(f.model.engine.remaining, 5)
-                XCTAssertEqual(f.model.forest.events.map(\.outcome), [.skipped])
+                XCTAssertEqual(f.model.forest.events.map(\.outcome), [.completed, .completed, .skipped])
             }
             XCTAssertEqual(f.model.forest.current, f.baseline)
             XCTAssertFalse(ForestEcology(profile: f.model.forest.current).isUnlocked(.pond))
             XCTAssertNil(f.model.forest.latestRestReward)
+            XCTAssertEqual(f.model.forest.current.weeklyJourney?.weeks.count, 2)
         }
     }
 
@@ -180,7 +218,7 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
 
     @MainActor
     func testChangingProfilesDuringARestKeepsEcologyAndItsRewardWithTheOriginalForest() async throws {
-        let f = try Fixture(completedRests: 35)
+        let f = try Fixture(completedRests: 35, recordedWeeks: 2)
         defer { f.cleanup() }
         f.model.nextPhase()
         let id = try f.restID()
@@ -191,16 +229,16 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
         XCTAssertEqual(f.model.forest.current, other)
         XCTAssertTrue(ForestEcology(profile: other).unlockedMilestones.isEmpty)
         XCTAssertEqual(f.model.forest.latestRestReward?.profileID, f.baseline.id)
-        XCTAssertEqual(f.model.forest.events.first?.id, id)
-        XCTAssertEqual(f.model.forest.events.first?.profileID, f.baseline.id)
+        XCTAssertEqual(f.model.forest.events.last?.id, id)
+        XCTAssertEqual(f.model.forest.events.last?.profileID, f.baseline.id)
         f.model.forest.selectProfile(f.baseline.id)
         XCTAssertEqual(ForestEcology(profile: f.model.forest.current).unlockedMilestones, [.pond])
-        XCTAssertEqual(f.model.forest.current.completedRests, 36)
+        XCTAssertEqual(f.model.forest.current.completedRests, f.baseline.completedRests + 1)
         f.model.forest.selectProfile(other.id)
         _ = try f.completeOneRest()
         XCTAssertEqual(f.model.forest.current.completedRests, 1)
         XCTAssertTrue(ForestEcology(profile: f.model.forest.current).unlockedMilestones.isEmpty)
-        XCTAssertEqual(f.model.forest.profiles.first(where: { $0.id == f.baseline.id })?.completedRests, 36)
+        XCTAssertEqual(f.model.forest.profiles.first(where: { $0.id == f.baseline.id })?.completedRests, f.baseline.completedRests + 1)
     }
 
     @MainActor
@@ -223,6 +261,17 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
             XCTAssertEqual(f.model.forest.current.trees.last?.species, species)
             XCTAssertEqual(f.model.forest.current.seed, before.seed)
             XCTAssertEqual(f.model.forest.events.map(\.outcome), [.completed, .completed])
+            XCTAssertEqual(f.model.forest.current.growthTarget, 24)
+            let firstMature = f.model.forest.current.trees
+            for _ in 0..<23 { _ = try f.completeOneRest() }
+            XCTAssertEqual(f.model.forest.current.trees, firstMature)
+            XCTAssertEqual(f.model.forest.current.growthCount, 23)
+            _ = try f.completeOneRest()
+            XCTAssertEqual(Array(f.model.forest.current.trees.dropLast()), firstMature)
+            XCTAssertEqual(f.model.forest.current.trees.last?.species, species)
+            XCTAssertEqual(f.model.forest.current.growthCount, 0)
+            XCTAssertEqual(f.model.forest.events.count, 26)
+            XCTAssertTrue(f.model.forest.events.allSatisfy { $0.outcome == .completed })
         }
     }
 
@@ -232,7 +281,7 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
             let f = try Fixture(completedRests: species.unlockAfter)
             defer { f.cleanup() }
             f.model.forest.selectSpecies(species)
-            for _ in 0..<3 { _ = try f.completeOneRest() }
+            for _ in 0..<24 { _ = try f.completeOneRest() }
             let backup = try RestlingBackup.decode(f.model.makeBackup().encoded())
             XCTAssertEqual(backup.forest.profiles[0].trees.last?.species, species)
             XCTAssertEqual(backup.forest.profiles[0].seed, f.baseline.seed)
@@ -257,7 +306,7 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
 
     @MainActor
     func testPauseSleepAndRelaunchRetainOneRestIdentityWithoutAnEarlyDiscovery() async throws {
-        let f = try Fixture(completedRests: 35)
+        let f = try Fixture(completedRests: 35, recordedWeeks: 2)
         defer { f.cleanup() }
         f.model.nextPhase()
         let id = try f.restID()
@@ -272,7 +321,7 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
         f.model.stop()
         XCTAssertEqual(try f.restID(), id)
         XCTAssertEqual(f.model.forest.current, f.baseline)
-        XCTAssertTrue(f.model.forest.events.isEmpty)
+        XCTAssertEqual(f.model.forest.events, f.baselineEvents)
         XCTAssertFalse(ForestEcology(profile: f.model.forest.current).isUnlocked(.pond))
         let restored = f.restore()
         XCTAssertEqual(restored.engine.phase, .shortBreak)
@@ -282,10 +331,12 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
         restored.toggleRunning()
         f.clock.advance(remaining)
         restored.advanceTimer(by: remaining)
-        XCTAssertEqual(restored.forest.events.map(\.id), [id])
-        XCTAssertEqual(restored.forest.events.map(\.outcome), [.completed])
-        XCTAssertEqual(restored.forest.current.completedRests, 36)
+        XCTAssertEqual(restored.forest.events.map(\.id), f.baselineEvents.map(\.id) + [id])
+        XCTAssertTrue(restored.forest.events.allSatisfy { $0.outcome == .completed })
+        XCTAssertEqual(restored.forest.current.completedRests, f.baseline.completedRests + 1)
         XCTAssertTrue(ForestEcology(profile: restored.forest.current).isUnlocked(.pond))
+        XCTAssertEqual(restored.forest.current.weeklyJourney?.weeks.count, 3)
+        XCTAssertEqual(restored.forest.current.weeklyJourney?.weeks.last?.restIDs, [id])
     }
 
     @MainActor
@@ -323,6 +374,7 @@ final class LongTermEcologyIntegrationTests: XCTestCase {
         XCTAssertFalse(f.model.forest.current.isUnlocked(.willow))
         _ = try f.completeOneRest()
         XCTAssertTrue(f.model.forest.current.isUnlocked(.willow))
+        XCTAssertFalse(ForestEcology(profile: f.model.forest.current).isUnlocked(.pond))
         XCTAssertEqual(f.model.forest.current.selectedSpecies, .oak)
         XCTAssertTrue(f.model.forest.current.trees.allSatisfy { $0.species == .oak })
         let trees = f.model.forest.current.trees

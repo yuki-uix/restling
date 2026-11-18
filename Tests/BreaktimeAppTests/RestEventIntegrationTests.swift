@@ -335,8 +335,17 @@ final class RestEventIntegrationTests: XCTestCase {
         defer { f.cleanup() }
         f.model.nextPhase()
         let restID = try f.savedRestID()
-        var legacy = f.model.forest.current
-        legacy.recordRest(id: restID, seconds: 5, date: f.clock.date)
+        // A v1 archive predates weekly metadata. Preserve the timer owner's
+        // exact ID/seed while constructing that genuine historical shape.
+        var oldShape = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(f.model.forest.current)) as? [String: Any])
+        oldShape.removeValue(forKey: "weeklyJourney")
+        var legacy = try JSONDecoder().decode(ForestProfile.self,
+            from: JSONSerialization.data(withJSONObject: oldShape))
+        XCTAssertNil(legacy.weeklyJourney)
+        XCTAssertEqual(legacy.id, f.model.forest.current.id)
+        XCTAssertEqual(legacy.seed, f.model.forest.current.seed)
+        XCTAssertTrue(legacy.recordRest(id: restID, seconds: 5, date: f.clock.date))
         f.model.stop()
         f.defaults.set(try JSONEncoder().encode(LegacyArchive(profiles: [legacy], activeProfileID: legacy.id)),
                        forKey: "forestProfiles.v1")

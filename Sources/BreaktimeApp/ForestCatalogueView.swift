@@ -42,7 +42,7 @@ struct ForestCatalogueView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("改种会保留本轮成长进度。")
                         .font(.system(size: 11, weight: .medium))
-                    Text("只影响正在培育的这棵，已长成的树木保持原样。")
+                    Text("跨周会继续培育。已经长成的树，留在原来的森林。")
                         .font(.system(size: 10)).foregroundStyle(muted)
                 }
                 Spacer(minLength: 0)
@@ -136,7 +136,7 @@ struct ForestCatalogueView: View {
                 .lineSpacing(4).fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("每轮三次休息，会这样慢慢长大").font(.system(size: 11, weight: .semibold))
+                Text("三种成长外观 · 首棵 3 次，之后每棵 24 次").font(.system(size: 11, weight: .semibold))
                 HStack(spacing: 6) {
                     ForEach(1...3, id: \.self) { stage in
                         VStack(spacing: 5) {
@@ -144,12 +144,12 @@ struct ForestCatalogueView: View {
                                 .frame(height: 84)
                             Text(["新芽", "幼苗", "成树"][stage - 1])
                                 .font(.system(size: 10, weight: .medium))
-                            Text("本轮第 \(stage) 次休息")
+                            Text("阶段外观预览")
                                 .font(.system(size: 9)).foregroundStyle(muted)
                         }.padding(.vertical, 7).frame(maxWidth: .infinity)
                             .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 11))
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel("\(selected.title)，\(["新芽", "幼苗", "成树"][stage - 1])外观预览，本轮第 \(stage) 次休息")
+                            .accessibilityLabel("\(selected.title)，\(["新芽", "幼苗", "成树"][stage - 1])阶段外观预览，不增加成长")
                             .accessibilityIdentifier("catalogue.stage.\(selected.rawValue).\(stage)")
                     }
                 }
@@ -165,7 +165,7 @@ struct ForestCatalogueView: View {
                     Text("再完成 \(restsToUnlock) 次休息，就能选择\(selected.title)。")
                         .font(.system(size: 11, weight: .medium))
                 } else {
-                    Text(isCurrent ? "正在培育\(selected.title) · 本轮 \(profile.growthStage) / 3" : "可以选择\(selected.title)，本轮成长进度会保留。")
+                    Text(isCurrent ? "正在培育\(selected.title) · 本轮 \(profile.growthCount) / \(profile.growthTarget)" : "可以选择\(selected.title)，本轮成长进度会保留。")
                         .font(.system(size: 11, weight: .medium))
                 }
                 Text(!unlocked ? "现在就可以自由查看外观，预览不会提前解锁。" : "还需 \(profile.restsUntilTree) 次完整休息，这棵树就会留在林间。")

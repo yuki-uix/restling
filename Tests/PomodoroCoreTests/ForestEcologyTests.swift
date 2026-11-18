@@ -119,4 +119,99 @@ final class ForestEcologyTests: XCTestCase {
         }
         XCTAssertEqual(profile, original)
     }
+
+    private var weeklyCalendar: Calendar {
+        var result = Calendar(identifier: .gregorian)
+        result.timeZone = TimeZone(secondsFromGMT: 0)!
+        return result
+    }
+
+    private func weeklyDate(_ index: Int) -> Date {
+        ISO8601DateFormatter().date(from: "2026-01-05T12:00:00Z")!
+            .addingTimeInterval(Double(index * 14) * 86_400)
+    }
+
+    private func weeklyProfile(legacyRests: Int = 0) -> ForestProfile {
+        var profile = ForestProfile(name: "每周森林")
+        for _ in 0..<legacyRests { XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20)) }
+        XCTAssertTrue(profile.enableWeeklyGrowth(at: weeklyDate(0), calendar: weeklyCalendar))
+        return profile
+    }
+
+    func testWeeklyDiscoveriesUseThreeSixAndTenRecordedWeeksAndStayAtTheEarningWeek() {
+        var profile = weeklyProfile()
+        XCTAssertEqual(ForestEcologyMilestone.allCases.map(\.weeklyUnlockAfter), [3, 6, 10])
+        for index in 0..<11 {
+            XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
+                date: weeklyDate(index), calendar: weeklyCalendar))
+            let ecology = ForestEcology(profile: profile)
+            XCTAssertTrue(ecology.isWeekly)
+            XCTAssertEqual(ecology.completedWeekCount, index + 1)
+            XCTAssertNil(ecology.restsUntilNext)
+            for milestone in ForestEcologyMilestone.allCases {
+                let unlocked = index + 1 >= milestone.weeklyUnlockAfter
+                XCTAssertEqual(ecology.isUnlocked(milestone), unlocked)
+                XCTAssertEqual(ecology.target(for: milestone), milestone.weeklyUnlockAfter)
+                if unlocked {
+                    let targetWeek = profile.weeklyJourney!.weeks[milestone.weeklyUnlockAfter - 1]
+                    XCTAssertEqual(ecology.location(for: milestone), .week(targetWeek.id))
+                    XCTAssertEqual(ecology.milestones(inWeekID: targetWeek.id), [milestone])
+                }
+            }
+            XCTAssertTrue(ecology.milestones(inGrove: 0).isEmpty)
+            XCTAssertTrue(ecology.milestones(inWeekID: "unknown").isEmpty)
+        }
+        let final = ForestEcology(profile: profile)
+        XCTAssertNil(final.nextMilestone)
+        XCTAssertNil(final.weeksUntilNext)
+        XCTAssertEqual(final.progressTowardsNext, 1)
+    }
+
+    func testOpeningEmptyWeeksAndPassingLegacyRestThresholdsCannotUnlockWeeklyEcology() {
+        var profile = weeklyProfile(legacyRests: 35)
+        let original = profile
+        _ = profile.weeklyJourney!.displayWeek(at: weeklyDate(30), calendar: weeklyCalendar)
+        XCTAssertEqual(profile, original)
+        var ecology = ForestEcology(profile: profile)
+        XCTAssertEqual(ecology.completedWeekCount, 0)
+        XCTAssertFalse(ecology.isUnlocked(.pond))
+        XCTAssertEqual(ecology.weeksUntilNext, 3)
+        XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
+            date: weeklyDate(0), calendar: weeklyCalendar))
+        ecology = ForestEcology(profile: profile)
+        XCTAssertEqual(profile.completedRests, 36)
+        XCTAssertFalse(ecology.isUnlocked(.pond))
+        XCTAssertEqual(ecology.weeksUntilNext, 2)
+        XCTAssertTrue(ecology.nextMilestoneText.contains("无需连续"))
+    }
+
+    func testMigratedSceneryRemainsInItsOriginalGroveWhileNewDiscoveriesBelongToWeeks() {
+        var profile = weeklyProfile(legacyRests: 36)
+        XCTAssertEqual(ForestEcology(profile: profile).location(for: .pond), .legacyGrove(0))
+        for index in 0..<10 {
+            XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
+                date: weeklyDate(index), calendar: weeklyCalendar))
+        }
+        let ecology = ForestEcology(profile: profile)
+        XCTAssertEqual(ecology.location(for: .pond), .legacyGrove(0))
+        XCTAssertEqual(ecology.milestones(inGrove: 0), [.pond])
+        XCTAssertEqual(ecology.location(for: .bridge), .week(profile.weeklyJourney!.weeks[5].id))
+        XCTAssertEqual(ecology.location(for: .visitors), .week(profile.weeklyJourney!.weeks[9].id))
+        XCTAssertTrue(ecology.requirementText(for: .pond).contains("最初的森林"))
+        XCTAssertTrue(ecology.requirementText(for: .bridge).contains("6"))
+        XCTAssertTrue(ecology.detail(for: .bridge).contains("保留"))
+    }
+
+    func testAllLegacyEcologySurvivesMigrationWithoutNewWeeksOrRediscovery() {
+        let profile = weeklyProfile(legacyRests: 145)
+        let ecology = ForestEcology(profile: profile)
+        XCTAssertEqual(ecology.unlockedMilestones, [.pond, .bridge, .visitors])
+        XCTAssertEqual(ecology.completedWeekCount, 0)
+        for milestone in ForestEcologyMilestone.allCases {
+            XCTAssertEqual(ecology.location(for: milestone), .legacyGrove(milestone.groveIndex))
+            XCTAssertEqual(ecology.currentValue(for: milestone), ecology.target(for: milestone))
+        }
+        XCTAssertTrue(ecology.milestones(inGrove: 3).isEmpty)
+        XCTAssertNil(ecology.nextMilestone)
+    }
 }

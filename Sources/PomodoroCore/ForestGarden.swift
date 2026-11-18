@@ -64,6 +64,7 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
     public private(set) var trees: [ForestTree]
     public let seed: UInt64
     private var creditedRestIDs: Set<UUID>
+    public private(set) var weeklyJourney: ForestWeeklyJourney?
 
     public init(name: String) {
         id = UUID()
@@ -74,11 +75,49 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
         trees = []
         seed = UInt64.random(in: 0...UInt64.max)
         creditedRestIDs = []
+        weeklyJourney = nil
     }
 
-    public var growthStage: Int { completedRests % 3 }
-    public var growthProgress: Double { Double(growthStage) / 3 }
-    public var restsUntilTree: Int { 3 - growthStage }
+    public var growthCount: Int { weeklyJourney?.growthCount ?? completedRests % 3 }
+    public var growthTarget: Int { weeklyJourney?.growthTarget ?? 3 }
+    public var growthStage: Int {
+        guard growthCount > 0 else { return 0 }
+        return growthProgress < 0.5 ? 1 : 2
+    }
+    public var growthProgress: Double { Double(growthCount) / Double(growthTarget) }
+    public var restsUntilTree: Int { growthTarget - growthCount }
+    public var legacyTreeCount: Int { weeklyJourney?.legacyTreeCount ?? trees.count }
+    public var legacyTrees: [ForestTree] { Array(trees.prefix(legacyTreeCount)) }
+
+    /// Production stores activate weekly growth explicitly, so decoding an old
+    /// backup never fabricates dates or silently changes its contents.
+    @discardableResult
+    public mutating func enableWeeklyGrowth(at date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard weeklyJourney == nil,
+              let journey = ForestWeeklyJourney(profile: self, date: date, calendar: calendar) else { return false }
+        weeklyJourney = journey
+        return true
+    }
+
+    public func trees(inWeekID weekID: String) -> [ForestTree] {
+        guard let journey = weeklyJourney else { return [] }
+        var start = journey.legacyTreeCount
+        for week in journey.weeks {
+            let end = start + week.treeIDs.count
+            if week.id == weekID { return Array(trees[start..<end]) }
+            start = end
+        }
+        return []
+    }
+
+    @discardableResult
+    public mutating func moveTree(id treeID: UUID, to slot: Int, inWeekID weekID: String,
+                                  at date: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard var journey = weeklyJourney,
+              journey.move(treeID: treeID, to: slot, weekID: weekID, date: date, calendar: calendar) else { return false }
+        weeklyJourney = journey
+        return true
+    }
 
     public func isUnlocked(_ species: ForestSpecies) -> Bool {
         completedRests >= species.unlockAfter
@@ -90,11 +129,28 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
 
     /// The caller supplies one stable ID per rest, including retries after saving.
     @discardableResult
-    public mutating func recordRest(id restID: UUID, seconds: TimeInterval, date: Date = Date()) -> Bool {
+    public mutating func recordRest(id restID: UUID, seconds: TimeInterval, date: Date = Date(),
+                                    calendar: Calendar = .current) -> Bool {
         guard seconds.isFinite, seconds > 0, seconds <= 86_400,
               date.timeIntervalSinceReferenceDate.isFinite,
               !creditedRestIDs.contains(restID),
               completedRests < 1_000_000 else { return false }
+        if var journey = weeklyJourney {
+            guard (try? ForestDataValidation.validateDate(date, field: "休息日期")) != nil else { return false }
+            let growsTree = journey.growthCount + 1 == journey.growthTarget
+            let grownSpecies = completedRests + 1 >= selectedSpecies.unlockAfter ? selectedSpecies : .oak
+            journey.append(restID: restID, seconds: seconds, treeID: growsTree ? restID : nil,
+                           species: grownSpecies, date: date, calendar: calendar)
+            creditedRestIDs.insert(restID)
+            completedRests += 1
+            totalRestSeconds += seconds
+            if growsTree {
+                let species = isUnlocked(selectedSpecies) ? selectedSpecies : .oak
+                trees.append(ForestTree(id: restID, species: species, plantedAt: date))
+            }
+            weeklyJourney = journey
+            return true
+        }
         creditedRestIDs.insert(restID)
         completedRests += 1
         totalRestSeconds += seconds
@@ -112,7 +168,7 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, selectedSpecies, completedRests, totalRestSeconds, trees, seed, creditedRestIDs
+        case id, name, selectedSpecies, completedRests, totalRestSeconds, trees, seed, creditedRestIDs, weeklyJourney
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,16 +181,24 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
         trees = try container.decode([ForestTree].self, forKey: .trees)
         seed = try container.decode(UInt64.self, forKey: .seed)
         creditedRestIDs = try container.decode(Set<UUID>.self, forKey: .creditedRestIDs)
+        weeklyJourney = try container.decodeIfPresent(ForestWeeklyJourney.self, forKey: .weeklyJourney)
+        try validateGrowth()
+        if !isUnlocked(selectedSpecies) { selectedSpecies = .oak }
+    }
+
+    func validateGrowth() throws {
         guard (0...1_000_000).contains(completedRests),
               completedRests == creditedRestIDs.count,
               totalRestSeconds.isFinite, totalRestSeconds >= 0,
               totalRestSeconds <= Double(completedRests) * 86_400,
-              trees.count == completedRests / 3,
               Set(trees.map(\.id)).count == trees.count,
               trees.allSatisfy({ creditedRestIDs.contains($0.id) && $0.plantedAt.timeIntervalSinceReferenceDate.isFinite }) else {
-            throw DecodingError.dataCorruptedError(forKey: .completedRests, in: container,
-                debugDescription: "森林存档的成长记录不完整。")
+            throw ForestDataError.invalid("森林存档的成长记录不完整。")
         }
-        if !isUnlocked(selectedSpecies) { selectedSpecies = .oak }
+        if let journey = weeklyJourney {
+            try journey.validate(profile: self, creditedIDs: creditedRestIDs)
+        } else if trees.count != completedRests / 3 {
+            throw ForestDataError.invalid("旧森林存档的成树记录不完整。")
+        }
     }
 }

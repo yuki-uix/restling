@@ -22,8 +22,9 @@ You can also download the app from [GitHub Releases](https://github.com/yuki-uix
 
 ## Your rest forest
 
-- Start with bare earth. The first completed break brings a sprout, the second a sapling, and the third a lasting tree and more land.
-- Unlock pine and blossom trees after 3 and 6 completed breaks, then birch at 12, willow at 36 and ginkgo at 72. Every 3 breaks adds another tree; a full grove keeps its 16 trees and the next break begins another piece of land.
+- Start with bare earth. A new forest's first three completed breaks bring a sprout, a sapling and its first lasting tree. Each subsequent tree takes **24 completed breaks**, with a little progress after every completion.
+- A new piece of land belongs to each **Monday–Sunday week**, using the Mac's local Gregorian calendar. Entering a new week displays an empty forest; only a real completed rest creates its dated record. Unused weeks are not filled in. An unfinished plant keeps its growth across weeks, and a mature tree belongs to the week in which it finishes growing.
+- Unlock pine and blossom trees after 3 and 6 cumulative completed breaks, then birch at 12, willow at 36 and ginkgo at 72. Tree-species unlock requirements remain unchanged; selecting another species preserves current cultivation progress and every tree already planted.
 - Browse all six species in the tree catalogue, including locked trees and their sprout, sapling and mature previews. Changing the species preserves the current growth stage and every tree already planted.
 - Enjoy sunlight, moving clouds, breeze and rain. Weather changes the atmosphere, not your progress; Reduce Motion freezes animation.
 - Rest behind a native frosted-glass overlay. The whole rest screen gently dims by up to 12% and returns to its original brightness in a 10-second cycle; Reduce Motion keeps the original brightness. This is a local visual effect and does not change your Mac's display brightness. There is nothing to feed or collect during the break. Press Esc to leave early; your existing forest stays safe.
@@ -31,35 +32,47 @@ You can also download the app from [GitHub Releases](https://github.com/yuki-uix
 
 The default rhythm is adjustable. This is a rest companion, with no streak penalty or withering trees.
 
+## This week's forest and the yearbook
+
+Open **“森林年鉴”** from the main forest card or menu bar. Recorded weeks are grouped by year and month, with a locally drawn thumbnail, their date range, completed-rest count, completed-timer duration and mature-tree count. A week with one or two completed rests is retained even if it has no mature tree. Open a card to inspect the full forest and its records, or visit it in the main window. Opening, browsing or revisiting a forest never creates a completion or awards growth.
+
+**“布置本周林地”** lets you select an already mature tree and move it to another position or swap it with a tree already there. Trees are planted automatically when they mature; arranging them is optional and needs no claiming step. Layout changes save immediately. Historical forests are read-only. A high-volume week with more than 16 mature trees has additional pages within that same week; trees are not discarded and capacity does not trigger a new week.
+
+Existing forests are kept as **“最初的森林”**, including their tree IDs, species, seed, original grove order and layout, cumulative progress and already earned footprints. Existing ecological discoveries remain in their original groves. Old trees or events are not used to invent weekly history. An unfinished old three-rest cycle can finish at its original target; after that, cultivation uses the new 24-rest cycle. Weekly records start with real completions after this change.
+
+The yearbook retains each week's original timezone and date range. If the clock or timezone moves back to an earlier civil week, cultivation stays with the latest recorded week instead of reopening an archived forest. There is no attendance requirement and no need to use the app every week.
+
 ## Forest footprints
 
-Open **“森林足迹”** from the main window's forest card or menu bar to browse 18 achievements for the current forest. Each has a small story, a clear condition and its own progress. Earned footprints appear automatically; there is nothing to claim during a break.
+Open **“森林足迹”** from the main window's forest card or menu bar to browse **22 achievements** for the current forest. Each has a small story, a clear condition and its own progress. Earned footprints appear automatically; there is nothing to claim during a break.
 
 | Group | What leaves a footprint |
 | --- | --- |
-| First growth | The first completed rest, the first tree, flowers at 6 rests and the stream at 12 |
-| Exploration | Mushrooms at 24 rests, a full grove at 48, the next grove at 49, the third grove at 97 and 100 completed rests |
-| Tree variety | Actually planting mature trees of 2, 4 and all 6 species |
-| Ecological discoveries | The existing pond at 36 rests, stone bridge at 72 and visitors at 120 |
+| First growth | The first completed rest and actual first mature tree; flowers at 6 completed rests and the stream at 12 within one week |
+| Exploration | Mushrooms at 24 completed rests in one week; 4 actual mature trees in one week; forests in 2 and 3 different recorded weeks; 100 cumulative completed rests; and 4, 12 and 26 recorded weeks |
+| Tree variety | Actually growing mature trees of 2, 4 and all 6 species; growing 3 different mature species within the same week |
+| Ecological discoveries | A pond, stone bridge and visitors after 3, 6 and 10 different weeks with completed rests |
 | Time for yourself | A cumulative 10 minutes, 1 hour and 3 hours of completed rest timers |
 
-Footprints reflect existing forest progress; they do not add new scenery, trees, rewards or event records. Unlocking a species or selecting it does not count as planting it. The first grove remains current at 48 rests; the 49th begins the next piece of land. Time footprints count completed timers, not verified gaze or health outcomes.
+The four new footprints celebrate 4, 12 and 26 recorded weeks, and three mature species in the same weekly forest. Different weeks do **not** need to be consecutive. The original 18 footprint identities remain, and previously earned progress is recognized from the preserved old baseline. Land-related conditions now follow actual trees or recorded weeks rather than filling new land after 48 rests.
+
+Footprints reflect forest progress; they do not add trees, rewards or event records. Unlocking a species or selecting it does not count as growing it. Time footprints count completed timers, not verified gaze or health outcomes.
 
 Each local forest has its own footprints. Existing progress is recognized after upgrading without inventing unlock dates. Taking days away does not reset achievements, and there are no streaks or attendance requirements. Restoring a backup shows the footprints supported by that restored forest snapshot, rather than retaining progress from the replaced data.
 
 ## Scenery that stays with your forest
 
-Open **“林地手记”** from the main window's forest card or menu bar to see the next ecological discovery, its cumulative-rest condition and the grove it belongs to.
+Open **“林地手记”** from the main window's forest card or menu bar to see the next ecological discovery, its condition and the forest it belongs to.
 
-| Completed rests in this forest | New scenery | Where it stays |
+| Different weeks with completed rests | New scenery | Where it stays |
 | --- | --- | --- |
-| 36 | A reed-lined pond | Grove 1 |
-| 72 | A stone bridge over the stream | Grove 2 |
-| 120 | Rabbit visitors in the grass | Grove 3 |
+| 3 | A reed-lined pond | The third recorded week's forest |
+| 6 | A stone bridge over the stream | The sixth recorded week's forest |
+| 10 | Rabbit visitors in the grass | The tenth recorded week's forest |
 
-After a discovery appears, the journal can take you back to its grove. Opening a new piece of bare land does not move or duplicate these landmarks. Existing forests use their earned cumulative totals to reveal eligible scenery; upgrading, browsing and visiting do not add rests, trees or event records.
+These weeks do not need to be consecutive. Once a discovery appears, the journal takes you back to its forest; it does not move to every new week. A pond, bridge or visitors already earned under the old 36/72/120-rest rules remain in groves 1/2/3 of “最初的森林”. Upgrading, browsing and visiting do not add rests, trees or event records.
 
-The new scenery and visitors are for the normal forest window after a break. They do not appear in the 20-second rest overlay, and there is nothing to claim or attend to during the break. Early growth remains unchanged: the first three rests still bring sprout, sapling and tree, followed by flowers at 6, a stream at 12 and mushrooms at 24.
+The scenery and visitors are for the normal forest window after a break. They do not appear in the 20-second rest overlay, and there is nothing to claim or attend to during the break. Within each new week, flowers, a stream and mushrooms appear at 6, 12 and 24 completed rests; new tree growth follows the slower cultivation cycle.
 
 ## Reminders that fit your day
 
@@ -81,15 +94,17 @@ Changing the 20/20 rhythm restarts the current timer and preserves your existing
 
 Open **“数据与备份”** from the main window's footer or the menu bar. It shows totals across all local forest profiles and the date detailed recording began.
 
-- **Keep the progress you already earned.** Older forests migrate with their cumulative rests, rest time and trees intact. Detailed event records begin after upgrading; Restling does not invent dates or individual records for earlier rests.
+- **Keep the progress you already earned.** Older forests migrate with their cumulative rests, rest time, trees and existing detailed events intact. Earlier cumulative progress without individual dates remains undated; Restling does not invent past events or split old forests into weekly records.
 - **Record timer outcomes.** Each new real rest attempt has a stable ID, forest ID, terminal time, configured duration and a `completed` or `skipped` result. A natural timer completion can grow the forest; an unfinished attempt earns no growth. Pausing, sleeping or quitting can retain the same attempt, while previews are excluded. These are timer outcomes, not verified gaze or medical results.
-- **Export a readable JSON backup.** The file includes every local forest, trees, event records and portable settings: rhythm, reminder choices, weather, onboarding and automatic update-check preference. It excludes the running timer, temporary snooze/DND deadlines, macOS login-item registration and update caches. Files are limited to **20 MiB**.
+- **Export a readable JSON backup.** The file includes every local forest, weekly history, layouts, cultivation state, old baseline, trees, event records and portable settings: rhythm, reminder choices, weather, onboarding and automatic update-check preference. It excludes the running timer, temporary snooze/DND deadlines, macOS login-item registration and update caches. Files are limited to **20 MiB**.
 - **Review before replacing.** “从备份恢复…” validates the file and shows current versus incoming counts. Confirming replaces all local forests, portable settings and events; it does not merge or add their totals. Cancelling or a failed validation leaves existing data unchanged. After a successful restore, reminders stay paused at a fresh use interval.
 - **Return to the previous state.** Before a restore is applied, Restling writes and checks a local safety copy. “恢复上次恢复前的数据…” reviews that copy before replacing current data. This operation also saves the current state, so the latest safety copy always represents the state before the most recent restore. Safety copies remain available after relaunch; earlier copies are retained in `~/Library/Application Support/Restling/Backups/` and can be found with the Finder button.
 
 If the existing archive cannot be read, the data window identifies the temporary forest and offers **“导出原始存档…”** instead of presenting it as a complete backup. The raw export preserves the unreadable bytes; it is not a validated Restling backup. You can select a valid backup to repair the local data. Before applying it, Restling saves the exact unreadable original and the current portable settings in a local safety file. Returning to that safety copy is explicitly reviewed as a return to the unreadable state, and a valid backup can be selected again to repair it. The app does not display unknown original counts as zero.
 
-Event storage and local recovery remain available alongside the forest ecology additions. Calendar views, weekly reports, accounts and cloud sync are outside these Epics. See [the backup format and recovery rules](docs/backup-format.md) for details, including which app version is needed for the new tree species.
+Version 0.14.0 uses forest archive **version 3** inside the existing backup envelope **version 1**. Valid older local archives and portable backups remain readable. Restoring an older backup preserves its original forest, then starts weekly cultivation without inventing past weeks. Archives and backups containing weekly forests require **Restling 0.14.0 or later**; earlier app versions cannot read them. See [the backup format and recovery rules](docs/backup-format.md).
+
+The yearbook is a local record of completed timers. Accounts, cloud sync and mobile clients remain separate work.
 
 ## Updates
 
@@ -123,7 +138,7 @@ Each issue includes acceptance criteria and dependencies. Now selects the next w
 
 Epics track product outcomes across versions; milestones stay on feature issues. Existing feature views exclude parent Epics so execution cards are not duplicated. Sub-issue progress covers the currently defined tasks; review each Epic's overall acceptance criteria before closing it. Cross-device scope research alone does not mean cross-device features have shipped. The four v0.8.0 baseline cards remain separate historical records.
 
-Version 0.10.0 delivered Epic #18's data foundation and local backups. Version 0.11.0 completes Epic #19's long-term ecology and tree catalogue scope (#9 and #10), originally included in the v0.10 candidate plan. Cross-device work and Developer ID signing/notarization remain separate planned work.
+Version 0.10.0 delivered Epic #18's data foundation and local backups. Version 0.11.0 completed Epic #19's long-term ecology and tree catalogue scope (#9 and #10), originally included in the v0.10 candidate plan. Version 0.14.0 adds slower cultivation, weekly forests, the yearbook and current-week layout editing. Cross-device work and Developer ID signing/notarization remain separate planned work.
 
 ## Build
 

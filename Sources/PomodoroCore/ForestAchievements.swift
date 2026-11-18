@@ -34,14 +34,16 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
     case twoSpecies, fourSpecies, sixSpecies
     case pond, bridge, visitors
     case tenMinutes, oneHour, threeHours
+    case fourWeeks, twelveWeeks, twentySixWeeks, mixedGrove
 
     public var id: String { rawValue }
 
     public var category: ForestAchievementCategory {
         switch self {
         case .firstRest, .firstTree, .flowerPath, .stream: return .beginnings
-        case .mushrooms, .fullGrove, .newGrove, .thirdGrove, .hundredRests: return .exploration
-        case .twoSpecies, .fourSpecies, .sixSpecies: return .diversity
+        case .mushrooms, .fullGrove, .newGrove, .thirdGrove, .hundredRests,
+             .fourWeeks, .twelveWeeks, .twentySixWeeks: return .exploration
+        case .twoSpecies, .fourSpecies, .sixSpecies, .mixedGrove: return .diversity
         case .pond, .bridge, .visitors: return .ecology
         case .tenMinutes, .oneHour, .threeHours: return .restTime
         }
@@ -67,6 +69,10 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
         case .tenMinutes: return "攒下一杯茶的时间"
         case .oneHour: return "留一小时给自己"
         case .threeHours: return "慢慢积成的时光"
+        case .fourWeeks: return "四页森林手札"
+        case .twelveWeeks: return "一季的绿意"
+        case .twentySixWeeks: return "半年的林间故事"
+        case .mixedGrove: return "同一片林间相遇"
         }
     }
 
@@ -90,6 +96,10 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
         case .tenMinutes: return "那些短短的休息，加起来已经有十分钟了。"
         case .oneHour: return "一点一点，你为自己留出了一小时的休息时光。"
         case .threeHours: return "不必一次留出很多时间，小小停顿也能慢慢积成三小时。"
+        case .fourWeeks: return "四个有过停顿的周，留成了四处不同的风景。中间的空白，也是生活的一部分。"
+        case .twelveWeeks: return "翻过十二页森林，零散的休息已经写下一季的绿意。"
+        case .twentySixWeeks: return "二十六个有过休息的周，慢慢积成一本厚厚的森林年鉴。"
+        case .mixedGrove: return "三种树在同一周的林地长成，相互陪伴，也各有自己的模样。"
         }
     }
 
@@ -101,6 +111,10 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
         case .tenMinutes: return "在这片森林累计完成 10 分钟休息计时。"
         case .oneHour: return "在这片森林累计完成 1 小时休息计时。"
         case .threeHours: return "在这片森林累计完成 3 小时休息计时。"
+        case .fourWeeks: return "在 4 个不同的周完成休息，无需连续。"
+        case .twelveWeeks: return "在 12 个不同的周完成休息，无需连续。"
+        case .twentySixWeeks: return "在 26 个不同的周完成休息，无需连续。"
+        case .mixedGrove: return "在同一周的林地实际长成 3 种不同的树。"
         default: return "在这片森林累计完成 \(Int(target)) 次休息。"
         }
     }
@@ -123,6 +137,8 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
         case .tenMinutes: return "cup.and.saucer"
         case .oneHour: return "sun.max"
         case .threeHours: return "moon.stars"
+        case .fourWeeks, .twelveWeeks, .twentySixWeeks: return "book.closed"
+        case .mixedGrove: return "tree.fill"
         }
     }
 
@@ -146,30 +162,43 @@ public enum ForestAchievement: String, CaseIterable, Identifiable, Sendable {
         case .tenMinutes: return 600
         case .oneHour: return 3_600
         case .threeHours: return 10_800
+        case .fourWeeks: return 4
+        case .twelveWeeks: return 12
+        case .twentySixWeeks: return 26
+        case .mixedGrove: return 3
         }
     }
 }
 
 public struct ForestAchievementProgress: Identifiable, Equatable, Sendable {
     public let achievement: ForestAchievement
-    /// The actual profile total, not a rounded or inferred count.
     public let current: Double
-    public var target: Double { achievement.target }
+    public let target: Double
+    public let story: String
+    public let requirement: String
+    /// A previously earned legacy footprint remains earned after the rule changes.
+    public let isLegacyRecognition: Bool
+    fileprivate let unit: ProgressUnit
     public var id: String { achievement.id }
-    public var isUnlocked: Bool { current >= target }
-    public var fraction: Double { min(1, max(0, current / target)) }
+    public var isUnlocked: Bool { isLegacyRecognition || current >= target }
+    public var fraction: Double { isLegacyRecognition ? 1 : min(1, max(0, current / target)) }
+
+    fileprivate enum ProgressUnit: Equatable, Sendable { case rests, trees, weeks, species, sameWeekSpecies, seconds }
 
     public var progressText: String {
+        if isLegacyRecognition { return "旧版足迹 · 已保留" }
         let shown = min(current, target)
-        switch achievement.category {
-        case .diversity: return "\(Int(shown)) / \(Int(target)) 种成熟树"
-        case .restTime: return "\(Self.duration(shown)) / \(Self.duration(target))"
-        default: return "\(Int(shown)) / \(Int(target)) 次休息"
+        switch unit {
+        case .species: return "\(Int(shown)) / \(Int(target)) 种成熟树"
+        case .sameWeekSpecies: return "\(Int(shown)) / \(Int(target)) 种同周成树"
+        case .weeks: return "\(Int(shown)) / \(Int(target)) 个有休息的周"
+        case .trees: return "\(Int(shown)) / \(Int(target)) 棵成树"
+        case .seconds: return "\(Self.duration(shown)) / \(Self.duration(target))"
+        case .rests: return "\(Int(shown)) / \(Int(target)) 次休息"
         }
     }
 
     private static func duration(_ seconds: Double) -> String {
-        // Never round an incomplete minute up to an unlocked milestone.
         let whole = Int(seconds.rounded(.down))
         let hours = whole / 3_600
         let minutes = whole % 3_600 / 60
@@ -182,29 +211,87 @@ public struct ForestAchievementProgress: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Reading this value cannot change a forest or create detailed historical
-/// events. Legacy cumulative totals are valid evidence, without invented dates.
+/// Derived from the current forest's actual data. Weekly milestones count only
+/// weeks with completed rests; opening a new empty week cannot earn anything.
 public struct ForestAchievements: Equatable, Sendable {
     public let items: [ForestAchievementProgress]
 
     public init(profile: ForestProfile) {
         let matureSpecies = Set(profile.trees.map(\.species)).count
+        let journey = profile.weeklyJourney
+        let weeks = journey?.weeks ?? []
+        let weekly = journey != nil
+        let legacyRests = journey?.legacyCompletedRests ?? profile.completedRests
+        let maxWeekRests = weeks.map(\.completedRests).max() ?? 0
+        let maxWeekTrees = weeks.map { $0.treeIDs.count }.max() ?? 0
+        let speciesByTreeID = Dictionary(uniqueKeysWithValues: profile.trees.map { ($0.id, $0.species) })
+        let maxWeekSpecies = weeks.map { week in
+            Set(week.treeIDs.compactMap { speciesByTreeID[$0] }).count
+        }.max() ?? 0
+        let ecology = ForestEcology(profile: profile)
         items = ForestAchievement.allCases.map { achievement in
-            let current: Double
-            switch achievement.category {
-            case .diversity: current = Double(matureSpecies)
-            case .restTime: current = profile.totalRestSeconds
-            default: current = Double(profile.completedRests)
+            var current = Double(profile.completedRests)
+            var target = achievement.target
+            var unit = ForestAchievementProgress.ProgressUnit.rests
+            var story = achievement.story
+            var requirement = achievement.requirement
+            var legacyEarned = false
+            switch achievement {
+            case .twoSpecies, .fourSpecies, .sixSpecies:
+                current = Double(matureSpecies)
+                unit = .species
+            case .tenMinutes, .oneHour, .threeHours:
+                current = profile.totalRestSeconds
+                unit = .seconds
+            case .fourWeeks, .twelveWeeks, .twentySixWeeks:
+                current = Double(weeks.count)
+                unit = .weeks
+            case .mixedGrove:
+                current = Double(maxWeekSpecies)
+                unit = .sameWeekSpecies
+            default: break
             }
-            return ForestAchievementProgress(achievement: achievement, current: current)
+            if weekly {
+                switch achievement {
+                case .firstTree:
+                    current = Double(profile.trees.count); target = 1; unit = .trees
+                    requirement = "在这份森林实际长成第一棵树。"
+                case .flowerPath, .stream, .mushrooms:
+                    current = Double(maxWeekRests)
+                    legacyEarned = legacyRests >= Int(achievement.target)
+                    requirement = "在同一周的林地累计完成 \(Int(target)) 次休息。"
+                case .fullGrove:
+                    current = Double(maxWeekTrees); target = 4; unit = .trees
+                    legacyEarned = legacyRests >= 48
+                    requirement = "在同一周的林地实际长成 4 棵树。"
+                    story = "一周的小停顿，长成了一片小树林。"
+                case .newGrove, .thirdGrove:
+                    current = Double(weeks.count); target = achievement == .newGrove ? 2 : 3; unit = .weeks
+                    legacyEarned = legacyRests >= Int(achievement.target)
+                    requirement = "在 \(Int(target)) 个不同的周完成休息，无需连续。"
+                    story = "这一周，也有属于自己的森林。过去的风景留在年鉴，随时可以回去看看。"
+                case .pond, .bridge, .visitors:
+                    let milestone: ForestEcologyMilestone = achievement == .pond ? .pond : achievement == .bridge ? .bridge : .visitors
+                    current = Double(weeks.count); target = Double(milestone.weeklyUnlockAfter); unit = .weeks
+                    if case .legacyGrove? = ecology.location(for: milestone) { legacyEarned = true }
+                    requirement = ecology.requirementText(for: milestone)
+                    story = ecology.detail(for: milestone)
+                default: break
+                }
+            }
+            let retained = legacyEarned && (current < target || achievement.category == .ecology)
+            if retained {
+                story = "这枚足迹随最初的森林保留。" + achievement.story
+                requirement = "旧版累计完成 \(Int(achievement.target)) 次休息时已获得，升级后保留。"
+            }
+            return ForestAchievementProgress(achievement: achievement, current: current, target: target,
+                story: story, requirement: requirement, isLegacyRecognition: retained, unit: unit)
         }
     }
 
     public var unlockedCount: Int { items.filter(\.isUnlocked).count }
     public var totalCount: Int { items.count }
 
-    /// The nearest proportional milestone. Ties retain catalogue order so
-    /// refreshes do not shuffle suggestions or depend on the wall clock.
     public var nextAchievement: ForestAchievementProgress? {
         items.filter { !$0.isUnlocked }.reduce(nil) { nearest, item in
             guard let nearest else { return item }
@@ -213,7 +300,6 @@ public struct ForestAchievements: Equatable, Sendable {
     }
 
     public func progress(for achievement: ForestAchievement) -> ForestAchievementProgress {
-        // Every allCases entry is constructed exactly once in the initializer.
         items.first { $0.achievement == achievement }!
     }
 

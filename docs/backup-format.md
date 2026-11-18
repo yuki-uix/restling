@@ -1,6 +1,6 @@
 # Restling backup format
 
-Restling 0.10.0 introduces event storage and a local, versioned JSON backup. It does not add an account, cloud sync, daily calendar or weekly report.
+Restling keeps forest progress and terminal timer records in a local, versioned JSON archive. Version 0.14.0 adds weekly forests, their layouts and cross-week cultivation state. The yearbook is local; it does not add an account or cloud sync.
 
 ## File envelope
 
@@ -11,7 +11,7 @@ The supported backup envelope has `format: "restling-backup"` and `version: 1`. 
 | `format` | The Restling backup marker. |
 | `version` | Backup format version, currently `1`. |
 | `createdAt` | When this backup snapshot was captured. |
-| `forest` | The version `2` forest archive described below. |
+| `forest` | The version `3` forest archive described below. Valid earlier backups containing forest archive version `2` remain readable. |
 | `settings` | Portable application preferences. |
 
 Files are UTF-8 JSON, formatted with sorted keys and indentation. Every encoded date uses Swift `JSONEncoder`'s default numeric representation: seconds since **2001-01-01 00:00:00 UTC**, not Unix seconds or an ISO 8601 string. Fractional seconds are retained.
@@ -20,11 +20,55 @@ Portable backup files have a maximum encoded or imported size of **20 MiB (20 ×
 
 ## Forest archive and migration
 
-The `forest` object contains `version: 2`, `profiles`, `activeProfileID`, `events` and `recordingStartedAt`. Profiles preserve IDs, names, growth totals, tree IDs/species/planting dates, selected species, visual seed and credited rest IDs. Forest and event data are encoded together in the local `forestProfiles.v1` UserDefaults value; the key name is retained for continuity even though the contained archive is version 2.
+The current `forest` object contains `version: 3`, `profiles`, `activeProfileID`, `events` and `recordingStartedAt`. Profiles preserve IDs, names, growth totals, tree IDs/species/maturity dates, selected species, visual seed and credited rest IDs, and add a `weeklyJourney` record. Forest, weekly history and events are encoded together in the local `forestProfiles.v1` UserDefaults value; the key name is retained for continuity even though the contained archive is version 3.
 
-When reading a valid version 1 local forest archive, the app preserves its original bytes and migrates the cumulative progress and trees. It starts an empty detailed event collection and records when that collection began. A profile's cumulative completed rests can therefore exceed its number of detailed completed events. Missing historical event dates are not reconstructed from tree dates or aggregate totals.
+Valid local version 1 and version 2 archives remain readable. Before converting an old local archive, the app retains its original bytes in local preferences. Migration preserves every profile, old tree ID/species/date and order, seed, old grove layout, cumulative total and existing event. A version 1 local archive has no detailed events; its old cumulative progress stays undated and a detailed-recording start time is recorded. Missing historical dates are not reconstructed from trees or aggregate totals.
 
-Restling 0.11.0 retains this archive shape and the existing `oak`, `pine` and `blossom` values, and adds `birch`, `willow` and `ginkgo`. Existing valid backups remain readable in the new app. A backup that contains any new species requires Restling 0.11.0 or later; an older app cannot be assumed to read it. Ecological discoveries are derived from cumulative completed rests and their fixed grove locations, so they add no stored event or reward when an archive is imported or the app is upgraded.
+Version 3 freezes old progress as the “最初的森林” baseline. Even when old individual events exist, they are not used to backfill new weekly forests. New real completions alone create week records. When an old backup is restored, the old forest is preserved and weekly cultivation begins from that restored baseline; a version 3 backup retains its own complete weekly history and cultivation state.
+
+The backup envelope remains version 1. A forest archive with weekly data must be version 3, and every profile in that archive must have a valid `weeklyJourney`. Version 2 archives must not contain weekly data. New weekly archives and backups require **Restling 0.14.0 or later**; earlier app versions cannot read them. An older backup containing `birch`, `willow` or `ginkgo` still requires at least version 0.11.0 in readers without weekly support. Upgrade compatibility does not imply that an old app can read a new archive.
+
+### Weekly cultivation and baseline
+
+Each `weeklyJourney` has its own version `1` and stores:
+
+| Field | Meaning |
+| --- | --- |
+| `startedAt` | When the profile began using weekly cultivation. |
+| `startingWeek` | The empty Monday–Sunday boundary at that time, not a yearbook attendance entry. |
+| `legacyCompletedRests` | The immutable cumulative completed-rest count before weekly cultivation. |
+| `legacyRestSeconds` | The cumulative completed-timer duration in that old baseline. |
+| `legacyTreeCount` | The number of old trees at the beginning of the profile's ordered `trees` array. |
+| `weeks` | Ordered, nonempty week records created by real completed rests. |
+
+The first tree of a new profile takes three completed rests; subsequent trees take 24. If migration preserves an unfinished old three-rest cycle, it completes at its old target before switching to the 24-rest cycle. Cultivation count and target are derived from the baseline and ordered completion IDs, rather than reset at midnight or at a week boundary. The profile's cumulative rests and duration still include both the old baseline and new weeks.
+
+### Week records and layouts
+
+Weeks use the local Gregorian Monday–Sunday calendar. A week has a civil Monday key such as `2026-11-16`; it is not an ISO week-year number. Its end is exclusive. The stored timezone and original boundaries preserve historical date labels, including daylight-saving transitions.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The civil date of the week's Monday, in `yyyy-MM-dd` form. |
+| `startDate`, `endDate` | Original start and exclusive end instants for that local week. |
+| `timeZoneIdentifier` | The timezone used when the week was first recorded. |
+| `restIDs` | Ordered IDs of this week's real completed timer outcomes. Their count is the completed-rest count. |
+| `totalRestSeconds` | Sum of the corresponding completed events' configured durations. |
+| `treeIDs` | Ordered IDs of trees that matured in this week. Each is also a completion ID. |
+| `placements` | Pairs of `treeID` and zero-based `slot`, with unique trees and positions. |
+| `lastGrowthCount`, `lastGrowthTarget`, `lastSpecies` | The cultivation snapshot after this week's latest recorded completion. |
+
+Opening a week's empty forest does not create a stored week or award growth. A week with one or two completed rests but no mature tree is a valid nonempty record. Entirely unused weeks are not inserted. Unfinished cultivation continues into the next week; a tree belongs to the week of its maturity completion. Historical scenes use the stored week snapshot rather than the current selected species or current plant stage.
+
+Current-week arrangement moves a mature tree or swaps two positions. It changes placements only: ordered tree IDs, species, rest records and rewards remain intact. A page has 16 slots; a high-volume week can have additional pages within the same week. Historical layouts cannot be edited through the app. Layouts are included in backup and restore.
+
+A backward clock or timezone change does not reopen an earlier civil week for new growth. The latest recorded week remains the active boundary until the calendar catches up or advances. This protects existing historical scenes; it is not a claim that the app can determine the user's actual timezone or correct a system clock.
+
+### Existing and future discoveries
+
+Tree-species unlock requirements remain based on cumulative completed rests. Previously earned footprint identities and ecological discoveries are recognized from the frozen old baseline. Existing pond/bridge/visitor scenery stays in its original old grove; new discoveries follow 3/6/10 different recorded weeks and stay in the week that earns them. These weeks need not be consecutive.
+
+The four new footprint conditions use 4, 12 and 26 distinct recorded weeks, and three actual mature species in the same weekly forest. Merely opening an empty week, changing the tree selection, viewing an entry or moving trees does not increase these counters. Footprints are derived from the restored snapshot, not separately claimed rewards or a ledger retained from replaced data.
 
 Each new terminal event contains:
 
@@ -54,9 +98,9 @@ It excludes active timer state/session IDs, temporary snooze or do-not-disturb d
 
 ## Validation and replacement
 
-The app validates the complete candidate before offering a review. It rejects an unsupported marker/version, malformed or oversized JSON, missing or invalid settings, inconsistent profile selection, duplicate event IDs, events whose profile is missing, and incompatible event/reward totals. Backup validation is strict: it does not silently clamp invalid preferences or substitute a locked species.
+The app validates the complete candidate before offering a review. It rejects an unsupported marker/version, malformed or oversized JSON, missing or invalid settings, inconsistent profile selection, duplicate event IDs, events whose profile is missing, and incompatible event/reward totals. Weekly validation also checks calendar boundaries and timezone, increasing and nonempty week records, unique and correctly owned completion/tree IDs, durations, tree order, cultivation snapshots and layout slots. Each version 3 weekly completion must have a corresponding completed terminal event. Backup validation is strict: it does not silently clamp invalid preferences or substitute a locked species.
 
-The review shows the file name and snapshot time, plus current and incoming forest, tree, completed-rest and event counts. Confirmation replaces the entire forest archive and portable settings; records and totals are installed directly, not merged or replayed through reward methods. The active timer identity and temporary deadlines are discarded. Reminders remain paused at a fresh use interval until the user starts them.
+The review shows the file name and snapshot time, plus current and incoming forest-profile, tree, completed-rest and event counts. A forest-profile count still means independent profiles, not weekly entries. Confirmation replaces the entire forest archive, including weekly history/layouts/cultivation state, and portable settings. Records and totals are installed directly, not merged or replayed through reward methods. Old version 2 data is normalized to weekly cultivation without inventing history. The active timer identity and temporary deadlines are discarded. Reminders remain paused at a fresh use interval until the user starts them.
 
 Selecting a file, cancelling the review or failing validation does not apply its data. A safety-file write/read-back failure cancels the restore before the existing dataset is replaced. If the original local archive is unreadable, the app protects its bytes, identifies the fallback forest as temporary and offers raw export. Automatic rest completion or cancellation cannot promote the temporary forest to a complete archive. A valid portable backup can still be selected to repair the data, after the exact unreadable original and current portable settings have been saved in a local safety copy.
 
