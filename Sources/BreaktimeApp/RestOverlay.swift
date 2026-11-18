@@ -127,9 +127,9 @@ private struct RestView: View {
                     ForestSceneView(profile: profile, resting: true,
                                     progress: model.isPreview ? 1 - model.restRemaining / 20 : model.progress,
                                     weather: ForestWeather(rawValue: weatherChoice),
-                                    animationEnabled: false)
+                                    animationEnabled: false, displayDate: forest.displayDate)
                         .frame(maxWidth: 1500, maxHeight: .infinity)
-                        .accessibilityLabel("\(profile.name)，已有 \(profile.trees.count) 棵成长树木")
+                        .accessibilityLabel("\(profile.name)的本周森林")
 
                     VStack(spacing: 12) {
                         Text(clockText(model.restRemaining))

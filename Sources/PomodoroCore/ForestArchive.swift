@@ -11,7 +11,7 @@ public struct ForestArchive: Codable, Equatable, Sendable {
 
     public init(profiles: [ForestProfile], activeProfileID: UUID,
                 events: [ForestRestEvent] = [], recordingStartedAt: Date = Date()) throws {
-        version = 2
+        version = profiles.contains(where: { $0.weeklyJourney != nil }) ? 3 : 2
         self.profiles = profiles
         self.activeProfileID = activeProfileID
         self.events = events
@@ -20,18 +20,28 @@ public struct ForestArchive: Codable, Equatable, Sendable {
     }
 
     public func validate() throws {
-        guard version == 2 else {
+        guard [2, 3].contains(version) else {
             throw ForestDataError.invalid("暂不支持这个森林存档版本，请使用兼容的 Restling 版本。")
         }
         guard !profiles.isEmpty, Set(profiles.map(\.id)).count == profiles.count,
               profiles.contains(where: { $0.id == activeProfileID }) else {
             throw ForestDataError.invalid("森林档案列表或当前森林无效。")
         }
+        if version == 2 {
+            guard profiles.allSatisfy({ $0.weeklyJourney == nil }) else {
+                throw ForestDataError.invalid("每周森林需要版本 3 存档，不能写入旧版存档。")
+            }
+        } else {
+            guard profiles.allSatisfy({ $0.weeklyJourney != nil }) else {
+                throw ForestDataError.invalid("每周森林存档缺少培育记录。")
+            }
+        }
         try ForestDataValidation.validateDate(recordingStartedAt, field: "森林开始记录的时间")
         guard profiles.allSatisfy({ $0.name == ForestProfile.cleanName($0.name) && $0.isUnlocked($0.selectedSpecies) }) else {
             throw ForestDataError.invalid("森林名称或当前培育树种无效。")
         }
         for profile in profiles {
+            try profile.validateGrowth()
             for tree in profile.trees {
                 try ForestDataValidation.validateDate(tree.plantedAt, field: "树木种下的时间")
             }
@@ -61,7 +71,29 @@ public struct ForestArchive: Codable, Equatable, Sendable {
                 }
             }
         }
+        let eventsByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
         for profile in profiles {
+            if let journey = profile.weeklyJourney {
+                let treesByID = Dictionary(uniqueKeysWithValues: profile.trees.map { ($0.id, $0) })
+                for week in journey.weeks {
+                    var seconds: TimeInterval = 0
+                    for id in week.restIDs {
+                        guard let event = eventsByID[id], event.profileID == profile.id, event.outcome == .completed else {
+                            throw ForestDataError.invalid("周森林缺少对应的已完成休息记录。")
+                        }
+                        seconds += event.configuredSeconds
+                    }
+                    for id in week.treeIDs {
+                        guard let event = eventsByID[id], let tree = treesByID[id], tree.plantedAt == event.occurredAt else {
+                            throw ForestDataError.invalid("周森林的成树日期与完成记录不一致。")
+                        }
+                    }
+                    let tolerance = max(0.000_001, abs(week.totalRestSeconds) * 1e-12)
+                    guard abs(seconds - week.totalRestSeconds) <= tolerance else {
+                        throw ForestDataError.invalid("周森林与休息记录的累计时长不一致。")
+                    }
+                }
+            }
             let count = completedCounts[profile.id, default: 0]
             let seconds = completedSeconds[profile.id, default: 0]
             // Floating-point addition order may differ after a round trip. This

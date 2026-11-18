@@ -67,7 +67,7 @@ struct ForestOnboardingView: View {
         switch page {
         case 0: return "森林，从你第一次休息开始。"
         case 1: return "每用眼 \(settings.intervalMinutes) 分钟，\n留 \(settings.restSeconds) 秒给远处。"
-        default: return "一次休息，一点生机。\n三次休息，一棵树。"
+        default: return "一周一处风景。\n把休息，留成森林年鉴。"
         }
     }
 
@@ -75,7 +75,7 @@ struct ForestOnboardingView: View {
         switch page {
         case 0: return "把目光还给远处，把休息留成森林。\n这里先留一小块空地，等第一抹绿慢慢出现。"
         case 1: return "到点时，森林会轻轻铺满屏幕，提醒你抬头看看远处。\n不用点击照料；休息结束，会自动回到原来的应用。"
-        default: return "新芽长成树，林地也一点点扩展。\n跳过不会扣除进度，也不会让已经长成的树枯萎。"
+        default: return "首棵树由三次休息开始，之后每棵慢慢积累二十四次。\n周一开启新林地，幼苗跨周继续培育，旧森林留在年鉴。"
         }
     }
 
@@ -106,12 +106,13 @@ struct ForestOnboardingView: View {
                             ForestSceneView(profile: demonstration(after: count))
                                 .frame(height: 140)
                             Text("第 \(count) 次休息").font(.system(size: 11, weight: .medium))
-                            Text(["新芽", "小树苗", "一棵树与更宽的土地"][count - 1])
+                            Text(["新芽", "小树苗", "第一棵树"][count - 1])
                                 .font(.system(size: 10)).foregroundStyle(ink.opacity(0.6))
                         }.frame(maxWidth: .infinity)
                     }
                 }
-                Text("成长示意").font(.system(size: 9)).foregroundStyle(ink.opacity(0.4))
+                Text("首棵成长示意 · 后续每棵 24 次休息 · 无需连续签到")
+                    .font(.system(size: 10)).foregroundStyle(ink.opacity(0.5))
             }.padding(12)
         }
     }

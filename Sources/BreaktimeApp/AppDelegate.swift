@@ -125,7 +125,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
            let species = ForestSpecies(rawValue: arguments[speciesIndex + 1]), profile.isUnlocked(species) {
             profile.selectedSpecies = species
         }
-        if let archive = try? ForestArchive(profiles: [profile], activeProfileID: profile.id),
+        var events: [ForestRestEvent] = []
+        if let weeksIndex = arguments.firstIndex(of: "--ui-test-weeks"), weeksIndex + 1 < arguments.count,
+           let weeks = Int(arguments[weeksIndex + 1]), (1...30).contains(weeks) {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = .current
+            let today = Date()
+            let hasEmptyCurrent = arguments.contains("--ui-test-empty-current")
+            let endOffset = hasEmptyCurrent ? 1 : 0
+            guard let oldest = calendar.date(byAdding: .weekOfYear, value: -(weeks - 1 + endOffset), to: today),
+                  let first = ForestWeek.containing(oldest, calendar: calendar) else { return }
+            profile.enableWeeklyGrowth(at: first.startDate, calendar: calendar)
+            let amountIndex = arguments.firstIndex(of: "--ui-test-weekly-rests")
+            let amount = amountIndex.flatMap { $0 + 1 < arguments.count ? Int(arguments[$0 + 1]) : nil } ?? 48
+            guard (1...200).contains(amount) else { return }
+            for offset in 0..<weeks {
+                guard let start = calendar.date(byAdding: .weekOfYear, value: offset, to: first.startDate) else { continue }
+                for number in 0..<amount {
+                    let eligible = ForestSpecies.allCases.filter { profile.isUnlocked($0) }
+                    profile.selectedSpecies = eligible[(number / 24 + offset) % eligible.count]
+                    let id = UUID()
+                    let completion = start.addingTimeInterval(Double(number + 1))
+                    if profile.recordRest(id: id, seconds: 20, date: completion, calendar: calendar) {
+                        events.append(ForestRestEvent(id: id, profileID: profile.id,
+                            occurredAt: completion, configuredSeconds: 20, outcome: .completed))
+                    }
+                }
+            }
+        }
+        if let archive = try? ForestArchive(profiles: [profile], activeProfileID: profile.id, events: events),
            let data = try? JSONEncoder().encode(archive) {
             defaults.set(data, forKey: "forestProfiles.v1")
         }
@@ -142,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(item("数据与备份…", #selector(showDataBackup)))
         appMenu.addItem(item("林地手记…", #selector(showForestEcology)))
         appMenu.addItem(item("森林足迹…", #selector(showForestAchievements)))
+        appMenu.addItem(item("森林年鉴…", #selector(showForestYearbook)))
         appMenu.addItem(item("检查更新…", #selector(showUpdates)))
         appMenu.addItem(item("关闭窗口", #selector(closeMainWindow), key: "w"))
         appMenu.addItem(.separator())
@@ -198,6 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("数据与备份…", #selector(showDataBackup)))
         menu.addItem(item("林地手记…", #selector(showForestEcology)))
         menu.addItem(item("森林足迹…", #selector(showForestAchievements)))
+        menu.addItem(item("森林年鉴…", #selector(showForestYearbook)))
         menu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         updateItem = item("检查更新…", #selector(showUpdates))
         menu.addItem(updateItem)
@@ -318,6 +348,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showForestEcology() {
         showMainWindow()
         NotificationCenter.default.post(name: .init("Restling.showForestEcology"), object: nil)
+    }
+    @objc private func showForestYearbook() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .init("Restling.showForestYearbook"), object: nil)
     }
     @objc private func showForestAchievements() {
         showMainWindow()

@@ -8,7 +8,7 @@ private let forestMuted = Color(red: 0.46, green: 0.52, blue: 0.43)
 private let forestPaper = Color(red: 0.97, green: 0.96, blue: 0.91)
 
 private enum ForestMainSheet: Identifiable, Equatable {
-    case settings, dataBackup, ecology, achievements, createProfile, renameProfile, onboarding
+    case settings, dataBackup, ecology, achievements, yearbook, layout, createProfile, renameProfile, onboarding
     case catalogue(ForestSpecies)
     var id: String {
         switch self {
@@ -16,6 +16,8 @@ private enum ForestMainSheet: Identifiable, Equatable {
         case .dataBackup: return "dataBackup"
         case .ecology: return "ecology"
         case .achievements: return "achievements"
+        case .yearbook: return "yearbook"
+        case .layout: return "layout"
         case .createProfile: return "createProfile"
         case .renameProfile: return "renameProfile"
         case .onboarding: return "onboarding"
@@ -34,6 +36,7 @@ struct MainView: View {
     private let onShowUpdates: () -> Void
     @State private var sheet: ForestMainSheet?
     @State private var profileName = ""
+    @State private var selection: ForestYearbookSelection = .currentWeek
     @State private var selectedGroveIndex: Int?
     @AppStorage("forestWeatherPreference.v1") private var weatherChoice = "automatic"
     @AppStorage("restForestOnboarding.v1") private var hasSeenOnboarding = false
@@ -54,14 +57,24 @@ struct MainView: View {
     }
 
     private var profile: ForestProfile { forest.current }
-    private var entireForest: ForestLandscape { ForestLandscape(profile: profile) }
-    private var displayedGrove: Int { min(entireForest.currentGroveIndex, max(0, selectedGroveIndex ?? entireForest.currentGroveIndex)) }
-    private var landscape: ForestLandscape { ForestLandscape(completedRests: entireForest.rests(inGrove: displayedGrove)) }
+    private var presentation: ForestScenePresentation {
+        ForestScenePresentation(profile: profile, selection: selection,
+                                date: forest.displayDate, page: selectedGroveIndex)
+    }
+    private var displayedWeek: ForestWeek? {
+        switch selection {
+        case .currentWeek: return forest.currentWeek
+        case .week(let id): return profile.weeklyJourney?.weeks.first { $0.id == id }
+        case .legacyGrove: return nil
+        }
+    }
+    private var isViewingCurrent: Bool {
+        selection == .currentWeek || displayedWeek?.id == forest.currentWeek?.id
+    }
     private var ecology: ForestEcology { ForestEcology(profile: profile) }
     private var discoveryReward: ForestStore.RestReward? {
         guard let reward = forest.latestRestReward, reward.profileID == profile.id,
-              ForestEcology.milestone(at: reward.completedRests) != nil ||
-              reward.completedRests == ForestSpecies.birch.unlockAfter else { return nil }
+              !reward.newDiscoveries.isEmpty else { return nil }
         return reward
     }
     private var quickSpecies: [ForestSpecies] {
@@ -70,19 +83,18 @@ struct MainView: View {
         return result
     }
     private var forestStatusText: String {
-        if profile.completedRests == 0 { return "这里还没有树。第一抹绿，会在你休息之后出现。" }
-        if displayedGrove < entireForest.currentGroveIndex {
-            let landmarks = ecology.milestones(inGrove: displayedGrove).map(\.title).joined(separator: "、")
-            return landmarks.isEmpty ? landscape.stageTitle : landscape.stageTitle + " · " + landmarks
-        }
-        return profile.completedRests < 24 ? landscape.stageTitle + " · " + landscape.nextMilestoneText : ecology.nextMilestoneText
+        guard let week = displayedWeek else { return presentation.summary }
+        if week.isEmpty { return "新一周，从空地开始。未成熟的植物，会接着慢慢培育。" }
+        return "这一周完成 \(week.completedRests) 次休息 · 长成 \(week.treeCount) 棵树"
     }
     private var growthTitle: String {
-        switch profile.growthStage {
-        case 1: return profile.completedRests == 1 ? "第一抹绿，刚刚发芽" : "下一棵树，刚刚发芽"
-        case 2: return "小树苗，快要长成了"
-        default: return profile.completedRests == 0 ? "第一抹绿，从一次休息开始" : "下一次休息，再添一点生机"
-        }
+        if profile.growthCount == 0 { return profile.trees.isEmpty ? "第一棵树，从一次休息开始" : "下一棵树，慢慢培育" }
+        return profile.growthStage == 1 ? "小小新芽，正在积攒养分" : "幼苗正在慢慢长大"
+    }
+    private func visit(_ target: ForestYearbookSelection) {
+        selection = target
+        selectedGroveIndex = nil
+        sheet = nil
     }
 
     var body: some View {
@@ -110,12 +122,18 @@ struct MainView: View {
             case .settings: settingsSheet
             case .dataBackup: DataBackupView(controller: backupController, onClose: { sheet = nil })
             case .ecology:
-                ForestEcologyView(forest: forest, onViewGrove: { index in
-                    selectedGroveIndex = index
-                    sheet = nil
+                ForestEcologyView(forest: forest, onVisit: { location in
+                    switch location {
+                    case .legacyGrove(let index): visit(.legacyGrove(index))
+                    case .week(let id): visit(.week(id))
+                    }
                 }, onClose: { sheet = nil })
             case .achievements:
                 ForestAchievementsView(forest: forest, onClose: { sheet = nil })
+            case .yearbook:
+                ForestYearbookView(forest: forest, onVisit: visit, onClose: { sheet = nil })
+            case .layout:
+                ForestLayoutView(forest: forest, onClose: { sheet = nil })
             case .createProfile, .renameProfile: profileSheet(currentSheet)
             case .catalogue(let species):
                 ForestCatalogueView(forest: forest, initiallySelected: species,
@@ -139,8 +157,10 @@ struct MainView: View {
         .onAppear {
             if onboardingEnabled && !hasSeenOnboarding { sheet = .onboarding }
         }
-        .onChange(of: profile.id) { _ in selectedGroveIndex = nil }
-        .onChange(of: profile.completedRests) { _ in selectedGroveIndex = nil }
+        .onChange(of: profile.id) { _ in selection = .currentWeek; selectedGroveIndex = nil }
+        .onChange(of: profile.completedRests) { _ in
+            if isViewingCurrent { selectedGroveIndex = nil }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showReminderSettings"))) { _ in
             sheet = .settings
         }
@@ -149,6 +169,9 @@ struct MainView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showForestEcology"))) { _ in
             sheet = .ecology
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showForestYearbook"))) { _ in
+            sheet = .yearbook
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showForestAchievements"))) { _ in
             sheet = .achievements
@@ -214,22 +237,26 @@ struct MainView: View {
 
     private var forestCard: some View {
         ZStack(alignment: .topLeading) {
-            ForestSceneView(profile: profile, groveIndex: displayedGrove,
-                            weather: ForestWeather(rawValue: weatherChoice))
+            ForestSceneView(profile: profile, groveIndex: selectedGroveIndex,
+                            weather: ForestWeather(rawValue: weatherChoice),
+                            selection: selection, displayDate: forest.displayDate)
                 .clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text(profile.name).lineLimit(1)
+                    Text(presentation.label).lineLimit(1)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                     Spacer(minLength: 6)
                     ForestWeatherPicker(seed: profile.seed, choice: $weatherChoice)
-                    if entireForest.groveCount > 1 {
+                    if presentation.pageCount > 1 {
                         groveNavigation
                     }
                 }
                 Text(forestStatusText)
                     .font(.system(size: 11)).foregroundStyle(forestMuted).lineLimit(2)
                 HStack(spacing: 14) {
+                    Button { sheet = .yearbook } label: {
+                        Label("森林年鉴", systemImage: "book.closed")
+                    }.buttonStyle(.plain).accessibilityIdentifier("main.yearbook")
                     Button { sheet = .ecology } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "map")
@@ -249,13 +276,21 @@ struct MainView: View {
                         .accessibilityLabel("查看森林足迹与成就")
                         .accessibilityIdentifier("main.achievements")
                 }
+                HStack(spacing: 14) {
+                    if !isViewingCurrent {
+                        Button("回到本周") { visit(.currentWeek) }
+                            .accessibilityIdentifier("main.currentWeek")
+                    }
+                    Button("布置本周林地") { sheet = .layout }
+                        .accessibilityIdentifier("main.layout")
+                }.buttonStyle(.link).font(.system(size: 10)).foregroundStyle(forestAccent)
                 Spacer()
                 Group {
                     if let reward = forest.latestRestReward, reward.profileID == profile.id,
-                       displayedGrove == entireForest.currentGroveIndex {
+                       isViewingCurrent {
                         Text(reward.title).fontWeight(.semibold)
                     } else {
-                        Text(displayedGrove < entireForest.currentGroveIndex ? "这片森林，留住了你曾经的休息。" : "森林会等你。现在，先照顾自己的眼睛。")
+                        Text(isViewingCurrent ? "森林会等你。现在，先照顾自己的眼睛。" : "这一处风景，已经留在森林年鉴里。")
                     }
                 }.font(.system(size: 10)).foregroundStyle(forestInk.opacity(0.76)).lineLimit(1)
                     .padding(.horizontal, 9).padding(.vertical, 4)
@@ -267,17 +302,23 @@ struct MainView: View {
 
     private var groveNavigation: some View {
         HStack(spacing: 7) {
-            Button { selectedGroveIndex = displayedGrove - 1 } label: {
+            Button { changePage(-1) } label: {
                 Image(systemName: "chevron.left").frame(width: 17, height: 20)
-            }.disabled(displayedGrove == 0).accessibilityLabel("查看上一片林地")
-            Text("第 \(displayedGrove + 1) 片 / 共 \(entireForest.groveCount) 片")
+            }.disabled(presentation.page == 0).accessibilityLabel("查看上一区域")
+            Text("第 \(presentation.page + 1) / \(presentation.pageCount) 区")
                 .font(.system(size: 10)).monospacedDigit()
-            Button { selectedGroveIndex = displayedGrove + 1 } label: {
+            Button { changePage(1) } label: {
                 Image(systemName: "chevron.right").frame(width: 17, height: 20)
-            }.disabled(displayedGrove == entireForest.currentGroveIndex).accessibilityLabel("查看下一片林地")
+            }.disabled(presentation.page == presentation.pageCount - 1).accessibilityLabel("查看下一区域")
         }.buttonStyle(.plain).foregroundStyle(forestMuted)
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(forestPaper.opacity(0.9), in: Capsule())
+    }
+
+    private func changePage(_ delta: Int) {
+        let page = min(max(0, presentation.page + delta), presentation.pageCount - 1)
+        if case .legacyGrove = selection { selection = .legacyGrove(page) }
+        else { selectedGroveIndex = page }
     }
 
     private var timerCard: some View {
@@ -347,7 +388,7 @@ struct MainView: View {
             HStack {
                 Text(discoveryReward?.title ?? growthTitle).font(.system(size: 14, weight: .semibold))
                 Spacer()
-                Text("\(profile.growthStage) / 3")
+                Text("\(profile.growthCount) / \(profile.growthTarget)")
                     .font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundStyle(forestMuted)
             }
             ProgressView(value: profile.growthProgress).tint(forestAccent)
@@ -432,7 +473,7 @@ struct MainView: View {
                     .accessibilityIdentifier("main.dataBackup")
                 Button("新手指引") { sheet = .onboarding }.buttonStyle(.link)
                 Spacer()
-                Text("预览和跳过不计成长 · 暂停不会让树枯萎")
+                Text("每周新林地 · 历史存入年鉴 · 预览和跳过不计成长")
             }.font(.system(size: 10)).foregroundStyle(forestMuted)
             if let error = forest.errorMessage {
                 Text(error).font(.system(size: 10)).foregroundStyle(.red)

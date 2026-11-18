@@ -107,11 +107,11 @@ struct ForestAchievementsView: View {
                     Spacer(minLength: 10)
                     status(item)
                 }
-                Text(item.achievement.story)
+                Text(item.story)
                     .font(.system(size: 12)).foregroundStyle(muted).lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 12) {
-                    Text(item.achievement.requirement)
+                    Text(item.requirement)
                         .font(.system(size: 10, weight: .medium))
                     Spacer(minLength: 0)
                     Text(item.progressText)
@@ -175,7 +175,7 @@ struct ForestAchievementsView: View {
                                 .font(.system(size: 11)).foregroundStyle(green)
                         }
                     }
-                    Text(item.achievement.requirement)
+                    Text(item.requirement)
                         .font(.system(size: 10)).foregroundStyle(muted)
                         .fixedSize(horizontal: false, vertical: true)
                     ProgressView(value: item.fraction).accessibilityHidden(true)
@@ -196,7 +196,7 @@ struct ForestAchievementsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("\(item.achievement.title)，\(item.isUnlocked ? "已留下" : "还在路上")，\(item.achievement.requirement)")
+        .accessibilityLabel("\(item.achievement.title)，\(item.isUnlocked ? "已留下" : "还在路上")，\(item.requirement)")
         .accessibilityValue("\(item.progressText)\(active ? "，已选择" : "")")
         .accessibilityHint("查看足迹故事和达成条件")
         .accessibilityIdentifier("achievement.\(item.achievement.rawValue)")

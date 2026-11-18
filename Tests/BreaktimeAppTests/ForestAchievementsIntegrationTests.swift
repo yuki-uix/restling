@@ -34,7 +34,6 @@ final class ForestAchievementsIntegrationTests: XCTestCase {
                 XCTAssertTrue(profile.recordRest(id: UUID(), seconds: 20,
                     date: clock.date.addingTimeInterval(-86_400)))
             }
-            baseline = profile
             let data: Data
             if legacy {
                 data = try JSONEncoder().encode(LegacyArchive(profiles: [profile], activeProfileID: profile.id))
@@ -48,6 +47,11 @@ final class ForestAchievementsIntegrationTests: XCTestCase {
             defaults.set(try JSONEncoder().encode(ReminderPreferences(idlePauseEnabled: false,
                 returnGraceSeconds: 0, startSoundEnabled: false, endSoundEnabled: false)),
                 forKey: "reminderPreferences.v1")
+            // Keep the input a genuine old archive without weekly fields; only
+            // the expected production snapshot gains the explicit migration.
+            var migratedBaseline = profile
+            XCTAssertTrue(migratedBaseline.enableWeeklyGrowth(at: clock.date))
+            baseline = migratedBaseline
             model = AppModel(defaults: defaults, now: { clock.date }, startsTicker: false)
         }
 

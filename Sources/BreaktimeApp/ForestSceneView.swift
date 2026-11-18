@@ -1,6 +1,87 @@
 import SwiftUI
 import PomodoroCore
 
+/// A presentation snapshot never invents a profile or changes its ledger.
+/// Legacy groves keep their exact seed and slots; weeks own their own tree IDs.
+struct ForestScenePresentation: Equatable {
+    struct Planted: Equatable {
+        let tree: ForestTree
+        let slot: Int
+        let variation: Int
+    }
+    let landscape: ForestLandscape
+    let scenery: ForestLandscape
+    let planted: [Planted]
+    let growthStage: Int
+    let species: ForestSpecies
+    let discoveries: [ForestEcologyMilestone]
+    let seed: UInt64
+    let page: Int
+    let pageCount: Int
+    let label: String
+    let summary: String
+
+    init(profile: ForestProfile, selection: ForestYearbookSelection, date: Date,
+         page requestedPage: Int? = nil) {
+        let journey = profile.weeklyJourney
+        let selectedWeek: ForestWeek?
+        switch selection {
+        case .currentWeek: selectedWeek = journey?.displayWeek(at: date)
+        case .week(let id): selectedWeek = journey?.weeks.first { $0.id == id }
+        case .legacyGrove: selectedWeek = nil
+        }
+        if let week = selectedWeek {
+            let current = journey?.displayWeek(at: date).id == week.id
+            let count = current ? profile.growthCount : week.lastGrowthCount
+            let target = current ? profile.growthTarget : week.lastGrowthTarget
+            let stage = count == 0 || week.isEmpty ? 0 : Double(count) / Double(target) < 0.5 ? 1 : 2
+            let pages = max(1, (week.treeCount + (stage > 0 ? 1 : 0) + 15) / 16)
+            pageCount = pages
+            let chosenPage = min(max(0, requestedPage ?? pages - 1), pages - 1)
+            page = chosenPage
+            let trees = profile.trees(inWeekID: week.id)
+            planted = trees.enumerated().compactMap { index, tree in
+                let slot = week.slot(for: tree.id)
+                return slot / 16 == chosenPage ? Planted(tree: tree, slot: slot % 16, variation: index + 10) : nil
+            }
+            growthStage = page == pages - 1 && planted.count < 16 ? stage : 0
+            species = current ? profile.selectedSpecies : week.lastSpecies
+            // A custom layout remains on usable soil even when a tree is moved
+            // to an outer slot. This is scenery geometry, never earned progress.
+            let furthest = planted.map(\.slot).max() ?? 0
+            let earnedDiscoveries = ForestEcology(profile: profile).milestones(inWeekID: week.id)
+            scenery = ForestLandscape(completedRests: min(48, week.completedRests))
+            landscape = ForestLandscape(completedRests: min(48, max(week.completedRests,
+                furthest >= 4 || !earnedDiscoveries.isEmpty ? 24 : week.completedRests)))
+            discoveries = earnedDiscoveries
+            var hash: UInt64 = 14_695_981_039_346_656_037
+            for byte in week.id.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+            seed = profile.seed ^ hash &+ UInt64(page) &* 0x9E3779B97F4A7C15
+            label = current ? "本周森林" : "周森林 · " + week.id
+            summary = "\(label)，完成 \(week.completedRests) 次休息，长成 \(week.treeCount) 棵树。未成熟的植物跨周继续培育。"
+        } else {
+            let rests = journey?.legacyCompletedRests ?? profile.completedRests
+            let total = ForestLandscape(completedRests: rests)
+            let index: Int
+            if case .legacyGrove(let chosen) = selection { index = chosen }
+            else { index = requestedPage ?? total.currentGroveIndex }
+            page = min(max(0, index), total.currentGroveIndex)
+            pageCount = total.groveCount
+            landscape = ForestLandscape(completedRests: total.rests(inGrove: page))
+            scenery = landscape
+            planted = Array(profile.legacyTrees.dropFirst(page * 16).prefix(16)).enumerated().map {
+                Planted(tree: $0.element, slot: $0.offset, variation: $0.offset + 10)
+            }
+            growthStage = page == total.currentGroveIndex ? rests % 3 : 0
+            species = journey?.legacySelectedSpecies ?? profile.selectedSpecies
+            discoveries = ForestEcology(profile: profile).milestones(inGrove: page)
+            seed = profile.seed &+ UInt64(page) &* 0x9E3779B97F4A7C15
+            label = journey == nil ? "第 \(page + 1) 片林地" : "最初的森林 · 第 \(page + 1) 片林地"
+            summary = "\(label)，\(landscape.stageTitle)，这里保留 \(planted.count) 棵树。"
+        }
+    }
+}
+
 /// Original, code-drawn pixel scenery. The desktop material remains visible
 /// around the island; no bitmap background or remote asset is required.
 struct ForestSceneView: View {
@@ -10,6 +91,8 @@ struct ForestSceneView: View {
     var groveIndex: Int? = nil
     var weather: ForestWeather? = nil
     var animationEnabled: Bool = true
+    var selection: ForestYearbookSelection = .currentWeek
+    var displayDate: Date = Date()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appearedAt = Date()
@@ -19,17 +102,8 @@ struct ForestSceneView: View {
 
     private var isStill: Bool { reduceMotion || !animationEnabled }
 
-    private var totalLandscape: ForestLandscape { ForestLandscape(profile: profile) }
-    private var displayedGroveIndex: Int {
-        min(max(0, groveIndex ?? totalLandscape.currentGroveIndex), totalLandscape.groveCount - 1)
-    }
-    private var localLandscape: ForestLandscape {
-        ForestLandscape(completedRests: totalLandscape.rests(inGrove: displayedGroveIndex))
-    }
-    private var groveSeed: UInt64 {
-        // An established grove keeps its identity. Later groves get a stable
-        // different orientation without shifting anything in the previous one.
-        profile.seed &+ UInt64(displayedGroveIndex) &* 0x9E3779B97F4A7C15
+    private var presentation: ForestScenePresentation {
+        ForestScenePresentation(profile: profile, selection: selection, date: displayDate, page: groveIndex)
     }
 
     var body: some View {
@@ -37,15 +111,14 @@ struct ForestSceneView: View {
             Canvas { context, size in
                 let elapsed = isStill ? 0 : max(0, timeline.date.timeIntervalSince(appearedAt))
                 var painter = ForestPixelPainter(context: context, size: size, time: elapsed,
-                                                 seed: groveSeed, resting: resting,
+                                                 seed: presentation.seed, resting: resting,
                                                  climate: atmosphere(at: timeline.date))
-                painter.paint(profile: profile, groveIndex: displayedGroveIndex,
-                              progress: min(1, max(0, progress)))
+                painter.paint(content: presentation, progress: min(1, max(0, progress)))
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(profile.name)的像素森林")
-        .accessibilityValue("第 \(displayedGroveIndex + 1) 片林地，\(localLandscape.stageTitle)，这里已种下 \(localLandscape.visibleTreeCount) 棵树。\(localLandscape.nextMilestoneText)")
+        .accessibilityValue(presentation.summary)
         .onAppear { previousOverride = weather }
         .onChange(of: weather) { newValue in
             let now = Date()
@@ -101,9 +174,8 @@ private struct ForestPixelPainter {
         self.context.scaleBy(x: scale, y: scale)
     }
 
-    mutating func paint(profile: ForestProfile, groveIndex: Int, progress: Double) {
-        let total = ForestLandscape(profile: profile)
-        let landscape = ForestLandscape(completedRests: total.rests(inGrove: groveIndex))
+    mutating func paint(content: ForestScenePresentation, progress: Double) {
+        let landscape = content.landscape
         // Each profile has a fixed orientation. Trees never change their position
         // when another rest is completed, and no ambient trees are gifted.
         if seed & 1 == 1 {
@@ -112,8 +184,8 @@ private struct ForestPixelPainter {
         }
         atmosphere(landscape: landscape)
         island(landscape: landscape)
-        if landscape.hasStream { stream(landscape: landscape) }
-        groundDetails(landscape: landscape)
+        if content.scenery.hasStream { stream(landscape: landscape) }
+        groundDetails(landscape: content.scenery)
 
         let sites: [(Double, Double)] = [
             (197, 153), (166, 159), (228, 157), (195, 177),
@@ -121,36 +193,32 @@ private struct ForestPixelPainter {
             (160, 185), (230, 186), (107, 151), (287, 154),
             (170, 126), (226, 126), (91, 179), (301, 181)
         ]
-        let earned = Array(profile.trees.dropFirst(groveIndex * sites.count).prefix(sites.count))
-        let plantingIndex = min(earned.count, sites.count - 1)
-        let planting = sites[plantingIndex]
-        // Empty soil is meaningful: at 0 and every multiple of 3 there is no
-        // automatic next sprout. Only completed rests reveal living plants.
-        if earned.count < sites.count {
-            currentPlot(x: planting.0, y: planting.1, stage: 0,
-                        species: profile.selectedSpecies, progress: progress)
+        let occupied = Set(content.planted.map(\.slot))
+        let plantingIndex = (0..<sites.count).first { !occupied.contains($0) }
+        if let plantingIndex {
+            let site = sites[plantingIndex]
+            currentPlot(x: site.0, y: site.1, stage: 0, species: content.species, progress: progress)
         }
-        var drawOrder: [(index: Int, y: Double)] = earned.indices.map { ($0, sites[$0].1) }
-        if landscape.hasCurrentPlant && groveIndex == total.currentGroveIndex && earned.count < sites.count {
-            drawOrder.append((earned.count, planting.1))
+        var drawOrder = content.planted.map { (slot: $0.slot, tree: Optional($0.tree), variation: $0.variation) }
+        if content.growthStage > 0, let plantingIndex {
+            drawOrder.append((slot: plantingIndex, tree: nil, variation: 0))
         }
-        for item in drawOrder.sorted(by: { $0.y < $1.y }) {
-            if item.index < earned.count {
-                let planted = earned[item.index]
-                let site = sites[item.index]
+        for item in drawOrder.sorted(by: { sites[$0.slot].1 < sites[$1.slot].1 }) {
+            let site = sites[item.slot]
+            if let planted = item.tree {
                 tree(planted.species, x: site.0, y: site.1,
-                     scale: item.index < 4 ? 0.62 : 0.53, variation: item.index + 10)
+                     scale: item.slot < 4 ? 0.62 : 0.53, variation: item.variation)
             } else {
-                currentPlot(x: planting.0, y: planting.1, stage: landscape.completedRests % 3,
-                            species: profile.selectedSpecies, progress: progress)
+                currentPlot(x: site.0, y: site.1, stage: content.growthStage,
+                            species: content.species, progress: progress)
             }
         }
-        if landscape.hasFlowers {
+        if content.scenery.hasFlowers {
             flowers(x: 147, y: 173, pink: seed & 8 == 0)
             flowers(x: 236, y: 175, pink: seed & 8 != 0)
             butterfly(x: 218, y: 106, phase: 0)
         }
-        if landscape.hasMushrooms {
+        if content.scenery.hasMushrooms {
             mushroom(x: 109, y: 182, tiny: false)
             mushroom(x: 117, y: 185, tiny: true)
             mushroom(x: 282, y: 167, tiny: true)
@@ -160,7 +228,7 @@ private struct ForestPixelPainter {
         // never repeated on a new island. Rest time remains free of surprises;
         // the new habitat is there to inspect after the overlay has closed.
         if !resting {
-            let discoveries = ForestEcology(profile: profile).milestones(inGrove: groveIndex)
+            let discoveries = content.discoveries
             if discoveries.contains(.pond) { ecologyPond() }
             if discoveries.contains(.bridge) { ecologyBridge() }
             if discoveries.contains(.visitors) { ecologyVisitors() }

@@ -6,7 +6,7 @@ import PomodoroCore
 @MainActor
 struct ForestEcologyView: View {
     @ObservedObject private var forest: ForestStore
-    private let onViewGrove: (Int) -> Void
+    private let onVisit: (ForestEcologyLocation) -> Void
     private let onClose: () -> Void
 
     private let ink = Color(red: 0.16, green: 0.28, blue: 0.23)
@@ -15,8 +15,14 @@ struct ForestEcologyView: View {
     private let paper = Color(red: 0.97, green: 0.96, blue: 0.91)
 
     init(forest: ForestStore, onViewGrove: @escaping (Int) -> Void, onClose: @escaping () -> Void) {
+        self.init(forest: forest, onVisit: { location in
+            if case .legacyGrove(let index) = location { onViewGrove(index) }
+        }, onClose: onClose)
+    }
+
+    init(forest: ForestStore, onVisit: @escaping (ForestEcologyLocation) -> Void, onClose: @escaping () -> Void) {
         self.forest = forest
-        self.onViewGrove = onViewGrove
+        self.onVisit = onVisit
         self.onClose = onClose
     }
 
@@ -32,7 +38,7 @@ struct ForestEcologyView: View {
                     ForEach(ForestEcologyMilestone.allCases) { milestone in
                         milestoneCard(milestone)
                     }
-                    Text("风景按累计休息自然出现。休息时先看看远处，结束后再回来慢慢逛；这里没有需要签到或领取的任务。")
+                    Text(ecology.isWeekly ? "风景会随着有休息记录的不同周自然来到森林，无需连续。旧景观留在最初的森林；休息结束后再回来慢慢逛，没有签到或领取任务。" : "风景按累计休息自然出现。休息时先看看远处，结束后再回来慢慢逛；这里没有需要签到或领取的任务。")
                         .font(.system(size: 11)).foregroundStyle(muted)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
@@ -65,7 +71,7 @@ struct ForestEcologyView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("林地手记")
                     .font(.system(size: 23, weight: .semibold, design: .rounded))
-                Text("\(profile.name) · 累计完成 \(profile.completedRests) 次休息")
+                Text(ecology.isWeekly ? "\(profile.name) · 已留下 \(ecology.completedWeekCount) 个有休息记录的周" : "\(profile.name) · 累计完成 \(profile.completedRests) 次休息")
                     .font(.system(size: 12)).foregroundStyle(muted)
                     .lineLimit(1)
             }
@@ -92,10 +98,10 @@ struct ForestEcologyView: View {
                     Text("下一处风景 · \(next.title)")
                         .font(.system(size: 13, weight: .semibold))
                     Spacer()
-                    Text("\(profile.completedRests) / \(next.unlockAfter) 次")
+                    Text("\(ecology.currentValue(for: next)) / \(ecology.target(for: next)) \(ecology.isWeekly ? "周" : "次")")
                         .font(.system(size: 11, design: .monospaced)).foregroundStyle(muted)
                 }
-                ProgressView(value: Double(profile.completedRests), total: Double(next.unlockAfter))
+                ProgressView(value: Double(ecology.currentValue(for: next)), total: Double(ecology.target(for: next)))
                     .tint(green)
                     .accessibilityLabel("距下一处生态风景的累计进度")
                 Text(ecology.nextMilestoneText)
@@ -132,23 +138,22 @@ struct ForestEcologyView: View {
                     Label(unlocked ? "已经出现" : "还在路上", systemImage: unlocked ? "checkmark.circle" : "lock")
                         .font(.system(size: 10)).foregroundStyle(muted)
                 }
-                Text("累计完成 \(milestone.unlockAfter) 次休息 · 第 \(milestone.groveIndex + 1) 片林地")
+                Text(ecology.requirementText(for: milestone))
                     .font(.system(size: 10, weight: .medium)).foregroundStyle(muted)
-                Text(unlocked ? milestone.detail : milestone.teaser)
+                Text(ecology.isWeekly ? ecology.detail(for: milestone) : unlocked ? milestone.detail : milestone.teaser)
                     .font(.system(size: 12)).foregroundStyle(muted)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
-                if unlocked {
-                    Button("去第 \(milestone.groveIndex + 1) 片林地看看") {
-                        guard ecology.isUnlocked(milestone),
-                              milestone.groveIndex <= ForestLandscape(profile: profile).currentGroveIndex else { return }
-                        onViewGrove(milestone.groveIndex)
+                if let location = ecology.location(for: milestone) {
+                    Button(visitTitle(location)) {
+                        guard let currentLocation = ecology.location(for: milestone) else { return }
+                        onVisit(currentLocation)
                     }
                     .buttonStyle(.link)
                     .font(.system(size: 11, weight: .medium))
                     .accessibilityIdentifier("ecology.visit.\(milestone.rawValue)")
                 } else {
-                    Text("再完成 \(max(0, milestone.unlockAfter - profile.completedRests)) 次休息")
+                    Text(ecology.isWeekly ? "再留下 \(max(0, milestone.weeklyUnlockAfter - ecology.completedWeekCount)) 个有休息记录的周" : "再完成 \(max(0, milestone.unlockAfter - profile.completedRests)) 次休息")
                         .font(.system(size: 11, weight: .medium))
                 }
             }
@@ -160,6 +165,14 @@ struct ForestEcologyView: View {
             .stroke(green.opacity(unlocked ? 0.20 : 0.09), lineWidth: 1))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ecology.milestone.\(milestone.rawValue)")
+    }
+
+    private func visitTitle(_ location: ForestEcologyLocation) -> String {
+        switch location {
+        case .legacyGrove(let index):
+            return ecology.isWeekly ? "去最初森林的第 \(index + 1) 片林地看看" : "去第 \(index + 1) 片林地看看"
+        case .week(let id): return "回访 \(id) 这一周的森林"
+        }
     }
 
     private func symbol(for milestone: ForestEcologyMilestone) -> String {

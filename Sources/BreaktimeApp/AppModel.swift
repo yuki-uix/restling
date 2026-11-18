@@ -103,7 +103,7 @@ final class AppModel: NSObject, ObservableObject {
                                                prewarningSeconds: 0, startSoundEnabled: false, endSoundEnabled: false)
         }
         reminderPreferences = preferences
-        self.forest = forest ?? ForestStore(defaults: defaults, now: now)
+        self.forest = forest ?? ForestStore(defaults: defaults, now: now, calendar: calendar)
         let settings: EyeRestSettings
         if let data = defaults.data(forKey: "eyeRestSettings.v1"),
            let saved = try? JSONDecoder().decode(EyeRestSettings.self, from: data) {
@@ -639,6 +639,7 @@ final class AppModel: NSObject, ObservableObject {
 
     @discardableResult
     private func reconcileEligibility() -> Bool {
+        forest.refreshWeek(at: now())
         let date = now()
         if let deadline = doNotDisturbUntil, deadline <= date { doNotDisturbUntil = nil }
         if let deadline = returnGraceUntil, deadline <= date { returnGraceUntil = nil }
