@@ -8,13 +8,14 @@ private let forestMuted = Color(red: 0.46, green: 0.52, blue: 0.43)
 private let forestPaper = Color(red: 0.97, green: 0.96, blue: 0.91)
 
 private enum ForestMainSheet: Identifiable, Equatable {
-    case settings, dataBackup, ecology, createProfile, renameProfile, onboarding
+    case settings, dataBackup, ecology, achievements, createProfile, renameProfile, onboarding
     case catalogue(ForestSpecies)
     var id: String {
         switch self {
         case .settings: return "settings"
         case .dataBackup: return "dataBackup"
         case .ecology: return "ecology"
+        case .achievements: return "achievements"
         case .createProfile: return "createProfile"
         case .renameProfile: return "renameProfile"
         case .onboarding: return "onboarding"
@@ -113,6 +114,8 @@ struct MainView: View {
                     selectedGroveIndex = index
                     sheet = nil
                 }, onClose: { sheet = nil })
+            case .achievements:
+                ForestAchievementsView(forest: forest, onClose: { sheet = nil })
             case .createProfile, .renameProfile: profileSheet(currentSheet)
             case .catalogue(let species):
                 ForestCatalogueView(forest: forest, initiallySelected: species,
@@ -146,6 +149,9 @@ struct MainView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showForestEcology"))) { _ in
             sheet = .ecology
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("Restling.showForestAchievements"))) { _ in
+            sheet = .achievements
         }
     }
 
@@ -223,15 +229,26 @@ struct MainView: View {
                 }
                 Text(forestStatusText)
                     .font(.system(size: 11)).foregroundStyle(forestMuted).lineLimit(2)
-                Button { sheet = .ecology } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "map")
-                        Text("林地手记 · \(ecology.unlockedMilestones.count) / \(ForestEcologyMilestone.allCases.count)")
-                        Image(systemName: "chevron.right").font(.system(size: 7, weight: .semibold))
-                    }.font(.system(size: 10, weight: .medium)).foregroundStyle(forestAccent)
-                }.buttonStyle(.plain).padding(.top, 2)
-                    .accessibilityLabel("查看林地手记与生态里程碑")
-                    .accessibilityIdentifier("main.ecology")
+                HStack(spacing: 14) {
+                    Button { sheet = .ecology } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "map")
+                            Text("林地手记 · \(ecology.unlockedMilestones.count) / \(ForestEcologyMilestone.allCases.count)")
+                            Image(systemName: "chevron.right").font(.system(size: 7, weight: .semibold))
+                        }.font(.system(size: 10, weight: .medium)).foregroundStyle(forestAccent)
+                    }.buttonStyle(.plain).padding(.top, 2)
+                        .accessibilityLabel("查看林地手记与生态里程碑")
+                        .accessibilityIdentifier("main.ecology")
+                    Button { sheet = .achievements } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "seal")
+                            Text("森林足迹")
+                            Image(systemName: "chevron.right").font(.system(size: 7, weight: .semibold))
+                        }.font(.system(size: 10, weight: .medium)).foregroundStyle(forestAccent)
+                    }.buttonStyle(.plain).padding(.top, 2)
+                        .accessibilityLabel("查看森林足迹与成就")
+                        .accessibilityIdentifier("main.achievements")
+                }
                 Spacer()
                 Group {
                     if let reward = forest.latestRestReward, reward.profileID == profile.id,

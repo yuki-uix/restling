@@ -1,6 +1,6 @@
 # Restling privacy
 
-Applies to the Restling 0.12.0 community preview.
+Applies to the Restling 0.13.0 community preview.
 
 ## What stays on your Mac
 
@@ -11,6 +11,8 @@ There is no account system or cloud sync. Restling has no advertising, analytics
 The native frosted-glass break overlay does not capture or save screenshots. It needs no Screen Recording permission. Its gentle whole-screen dimming is rendered locally inside the rest window; it does not change the Mac's display brightness or request a new permission. Weather is generated locally and does not use your location.
 
 Tree species and ecological discoveries are derived locally from the existing cumulative rest total. The tree catalogue and “林地手记” do not collect browsing analytics or make network requests. The ecology additions introduce no new data collection, system permission or background task.
+
+The 18 “森林足迹” achievements are calculated locally from the current forest's existing completed-rest total, cumulative completed-timer duration and mature trees. They introduce no achievement ledger, unlock timestamps, new rest events or browsing analytics. Different local forests are evaluated separately; restoring a backup shows the achievements supported by the restored snapshot. Viewing achievements does not record a rest or change growth. Day-and-hour restrictions remain optional, and turning the restriction off retains the saved day and time selections without enabling any new monitoring.
 
 ## Presence and login items
 
