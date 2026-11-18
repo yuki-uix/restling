@@ -273,12 +273,12 @@ final class ForestWeeklyJourneyTests: XCTestCase {
         }
     }
 
-    func testWeeklyArchiveUsesVersionThreeAndRequiresMatchingAtomicEvents() throws {
+    func testWeeklyArchiveUsesVersionFourAndRequiresMatchingAtomicEvents() throws {
         var profile = weekly()
         let events = complete(&profile, count: 3, at: monday)
         let archive = try ForestArchive(profiles: [profile], activeProfileID: profile.id,
                                         events: events, recordingStartedAt: monday)
-        XCTAssertEqual(archive.version, 3)
+        XCTAssertEqual(archive.version, 4)
         XCTAssertEqual(try JSONDecoder().decode(ForestArchive.self, from: JSONEncoder().encode(archive)), archive)
         XCTAssertThrowsError(try ForestArchive(profiles: [profile], activeProfileID: profile.id,
                                                recordingStartedAt: monday))
@@ -326,7 +326,7 @@ final class ForestWeeklyJourneyTests: XCTestCase {
                                         events: events, recordingStartedAt: monday)
         let backup = try RestlingBackup(forest: archive, settings: BackupSettings(), createdAt: monday)
         XCTAssertEqual(backup.version, 1)
-        XCTAssertEqual(backup.forest.version, 3)
+        XCTAssertEqual(backup.forest.version, 4)
         let decoded = try RestlingBackup.decode(backup.encoded())
         XCTAssertEqual(decoded, backup)
         XCTAssertEqual(decoded.forest.profiles[0].legacyTrees, oldTrees)

@@ -74,7 +74,7 @@ struct MainView: View {
     private var ecology: ForestEcology { ForestEcology(profile: profile) }
     private var discoveryReward: ForestStore.RestReward? {
         guard let reward = forest.latestRestReward, reward.profileID == profile.id,
-              !reward.newDiscoveries.isEmpty else { return nil }
+              !reward.newDiscoveries.isEmpty || reward.newEncounter != nil else { return nil }
         return reward
     }
     private var quickSpecies: [ForestSpecies] {

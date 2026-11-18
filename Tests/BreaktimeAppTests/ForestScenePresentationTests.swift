@@ -121,4 +121,24 @@ final class ForestScenePresentationTests: XCTestCase {
         XCTAssertEqual(second.planted.count, 1)
         XCTAssertEqual(Set((first.planted + second.planted).map(\.tree.id)), Set(profile.trees.map(\.id)))
     }
+
+    func testEncountersStayOnTheirOwnWeeksFirstPageAndBrowsingNeverRerolls() throws {
+        var profile = ForestProfile(name: "林间偶遇")
+        profile.enableWeeklyGrowth(at: monday)
+        for day in 0..<3 {
+            complete(1, profile: &profile, date: monday.addingTimeInterval(Double(day * 86_400)))
+        }
+        complete(16 * 24, profile: &profile, date: monday.addingTimeInterval(2 * 86_400 + 60))
+        let week = try XCTUnwrap(profile.weeklyJourney?.weeks.first)
+        XCTAssertFalse(week.encounters.isEmpty)
+        let before = profile
+        let first = ForestScenePresentation(profile: profile, selection: .week(week.id), date: nextMonday, page: 0)
+        let second = ForestScenePresentation(profile: profile, selection: .week(week.id), date: nextMonday, page: 1)
+        XCTAssertEqual(first.encounters, week.encounters.compactMap(\.kind))
+        XCTAssertTrue(second.encounters.isEmpty)
+        XCTAssertTrue(ForestScenePresentation(profile: profile, selection: .currentWeek, date: nextMonday).encounters.isEmpty)
+        XCTAssertTrue(ForestScenePresentation(profile: profile, selection: .legacyGrove(0), date: nextMonday).encounters.isEmpty)
+        XCTAssertEqual(first, ForestScenePresentation(profile: profile, selection: .week(week.id), date: nextMonday, page: 0))
+        XCTAssertEqual(profile, before)
+    }
 }

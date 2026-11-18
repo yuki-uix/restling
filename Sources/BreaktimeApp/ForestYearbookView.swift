@@ -182,6 +182,10 @@ struct ForestYearbookView: View {
                 }
                 Text("\(week.completedRests) 次休息 · \(ForestYearbookFormatting.duration(week.totalRestSeconds)) · \(week.treeCount) 棵成树")
                     .font(.system(size: 10)).foregroundStyle(muted)
+                if !week.encounters.isEmpty {
+                    Label("\(week.encounters.count) 次林间偶遇", systemImage: "sparkle")
+                        .font(.system(size: 10)).foregroundStyle(green)
+                }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -189,7 +193,7 @@ struct ForestYearbookView: View {
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(green.opacity(0.1), lineWidth: 1))
             .accessibilityElement(children: .ignore)
         }.buttonStyle(.plain)
-            .accessibilityLabel("\(ForestYearbookFormatting.range(week, includeYear: true))，\(week.completedRests) 次休息，\(ForestYearbookFormatting.duration(week.totalRestSeconds))，\(week.treeCount) 棵成熟树\(isCurrent ? "，本周" : "")")
+            .accessibilityLabel("\(ForestYearbookFormatting.range(week, includeYear: true))，\(week.completedRests) 次休息，\(ForestYearbookFormatting.duration(week.totalRestSeconds))，\(week.treeCount) 棵成熟树，\(week.encounters.count) 次林间偶遇\(isCurrent ? "，本周" : "")")
             .accessibilityHint("查看这一周的完整森林与记录")
             .accessibilityIdentifier("yearbook.week.\(week.id)")
     }
@@ -236,6 +240,7 @@ struct ForestYearbookView: View {
             scene(selection: selected ?? .currentWeek)
             statistics(rests: week.completedRests, seconds: week.totalRestSeconds, trees: week.treeCount)
             treeTypes(profile.trees(inWeekID: week.id))
+            if !week.encounters.isEmpty { encounterNotes(week) }
             if week.isEmpty {
                 Text("这里还没有本周的休息记录。完成第一次休息后，年鉴才会收录这一周。")
                     .font(.system(size: 12)).foregroundStyle(muted).lineSpacing(3)
@@ -260,6 +265,29 @@ struct ForestYearbookView: View {
             Text(title).font(.system(size: 18, weight: .semibold, design: .rounded))
             Text(subtitle).font(.system(size: 12)).foregroundStyle(muted)
         }
+    }
+
+    private func encounterNotes(_ week: ForestWeek) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("林间偶遇").font(.system(size: 14, weight: .semibold, design: .rounded))
+            ForEach(week.encounters) { encounter in
+                if let kind = encounter.kind {
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(ForestYearbookFormatting.encounterDate(encounter.occurredAt, in: week))
+                            .font(.system(size: 11)).foregroundStyle(muted)
+                            .frame(width: 58, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(kind.title).font(.system(size: 12, weight: .medium))
+                            Text(kind.detail).font(.system(size: 11)).foregroundStyle(muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(green.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("yearbook.encounters")
     }
 
     private func scene(selection: ForestYearbookSelection) -> some View {
@@ -326,6 +354,15 @@ struct ForestYearbookView: View {
 }
 
 enum ForestYearbookFormatting {
+    static func encounterDate(_ date: Date, in week: ForestWeek) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = TimeZone(identifier: week.timeZoneIdentifier) ?? TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "M/d EEE"
+        return formatter.string(from: date)
+    }
+
     static func range(_ week: ForestWeek, includeYear: Bool = false) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

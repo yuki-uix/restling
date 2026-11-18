@@ -15,6 +15,7 @@ struct ForestScenePresentation: Equatable {
     let growthStage: Int
     let species: ForestSpecies
     let discoveries: [ForestEcologyMilestone]
+    let encounters: [ForestEncounterKind]
     let seed: UInt64
     let page: Int
     let pageCount: Int
@@ -54,11 +55,15 @@ struct ForestScenePresentation: Equatable {
             landscape = ForestLandscape(completedRests: min(48, max(week.completedRests,
                 furthest >= 4 || !earnedDiscoveries.isEmpty ? 24 : week.completedRests)))
             discoveries = earnedDiscoveries
+            // A saved encounter belongs to one week and one page. Visiting the
+            // yearbook never draws a new outcome or repeats it on every page.
+            encounters = page == 0 ? week.encounters.compactMap(\.kind) : []
             var hash: UInt64 = 14_695_981_039_346_656_037
             for byte in week.id.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
             seed = profile.seed ^ hash &+ UInt64(page) &* 0x9E3779B97F4A7C15
             label = current ? "本周森林" : "周森林 · " + week.id
-            summary = "\(label)，完成 \(week.completedRests) 次休息，长成 \(week.treeCount) 棵树。未成熟的植物跨周继续培育。"
+            let encounterSummary = week.encounters.isEmpty ? "" : "林间偶遇 \(week.encounters.count) 次。"
+            summary = "\(label)，完成 \(week.completedRests) 次休息，长成 \(week.treeCount) 棵树。\(encounterSummary)未成熟的植物跨周继续培育。"
         } else {
             let rests = journey?.legacyCompletedRests ?? profile.completedRests
             let total = ForestLandscape(completedRests: rests)
@@ -75,6 +80,7 @@ struct ForestScenePresentation: Equatable {
             growthStage = page == total.currentGroveIndex ? rests % 3 : 0
             species = journey?.legacySelectedSpecies ?? profile.selectedSpecies
             discoveries = ForestEcology(profile: profile).milestones(inGrove: page)
+            encounters = []
             seed = profile.seed &+ UInt64(page) &* 0x9E3779B97F4A7C15
             label = journey == nil ? "第 \(page + 1) 片林地" : "最初的森林 · 第 \(page + 1) 片林地"
             summary = "\(label)，\(landscape.stageTitle)，这里保留 \(planted.count) 棵树。"
@@ -232,6 +238,7 @@ private struct ForestPixelPainter {
             if discoveries.contains(.pond) { ecologyPond() }
             if discoveries.contains(.bridge) { ecologyBridge() }
             if discoveries.contains(.visitors) { ecologyVisitors() }
+            for encounter in content.encounters { forestEncounter(encounter, landscape: landscape) }
         }
         weatherOnLand(landscape: landscape)
         windWisps()
@@ -532,6 +539,89 @@ private struct ForestPixelPainter {
         rabbit(x: 187, y: 197, scale: 0.88, phase: 0)
         rabbit(x: 213, y: 194, scale: 1, phase: 3.4)
         flowers(x: 231, y: 201, pink: false)
+    }
+
+    private func forestEncounter(_ kind: ForestEncounterKind, landscape: ForestLandscape) {
+        // These normalized stations follow the growing shoreline, so an early
+        // visitor never floats outside the small first patch of soil. Their
+        // identity and side stay fixed in the saved week's scene.
+        let station: (Double, Double)
+        switch kind {
+        case .robin: station = (302, 190)
+        case .bluebird: station = (94, 191)
+        case .goldenMushrooms: station = (267, 196)
+        }
+        let x = (194 + (station.0 - 194) * landscape.landScale).rounded()
+        let heightScale = (38 + 66 * landscape.expansionProgress) / 104
+        let y = (154 + (station.1 - 150) * heightScale).rounded()
+        switch kind {
+        case .robin: encounterBird(x: x, y: y, blue: false)
+        case .bluebird: encounterBird(x: x, y: y, blue: true)
+        case .goldenMushrooms: encounterMushrooms(x: x, y: y)
+        }
+    }
+
+    private func encounterBird(x: Double, y: Double, blue: Bool) {
+        var bird = self
+        bird.oval(x - 10, y - 1, 22, 3, color: deep.opacity(0.15), step: 1)
+        bird.context.translateBy(x: x, y: y)
+        if !blue { bird.context.scaleBy(x: -1, y: 1) }
+        // A one-pixel head tilt happens only briefly in a nine-second cycle;
+        // the bird stays planted rather than flying across the scene.
+        let phase = time.truncatingRemainder(dividingBy: 9)
+        let tilt = phase > 6.1 && phase < 7.4 ? 1.0 : 0.0
+        let outline = Color.pixel(blue ? 0x496A77 : 0x7C6754)
+        let feathers = Color.pixel(blue ? 0x7FAEC0 : 0xA79577)
+        let bright = Color.pixel(blue ? 0xB7D6D7 : 0xC8B794)
+        let belly = Color.pixel(blue ? 0xEEE5BB : 0xD99571)
+        let wing = Color.pixel(blue ? 0x608A9E : 0x867253)
+        let beak = Color.pixel(0xC39A54)
+        bird.rect(-5, -3, 1, 4, outline)
+        bird.rect(4, -3, 1, 4, outline)
+        bird.rect(-7, 0, 5, 1, outline)
+        bird.rect(2, 0, 5, 1, outline)
+        bird.rect(-13, -9, 7, 3, outline)
+        bird.rect(-14, -11, 6, 3, feathers)
+        bird.rect(-12, -10, 5, 1, bright)
+        bird.oval(-10, -14, 19, 13, color: outline, step: 2)
+        bird.oval(-9, -14, 17, 11, color: feathers, step: 2)
+        bird.oval(-4, -11, 12, 9, color: belly, step: 1)
+        bird.rect(-8, -11, 8, 5, wing)
+        bird.rect(-7, -11, 5, 2, bright)
+        var head = bird
+        head.context.translateBy(x: tilt, y: -tilt)
+        head.rect(0, -18, 10, 8, outline)
+        head.rect(1, -19, 7, 10, feathers)
+        head.rect(0, -17, 11, 6, feathers)
+        head.rect(2, -19, 5, 2, bright)
+        head.rect(5, -13, 5, 4, belly)
+        head.rect(10, -14, 4, 2, beak)
+        head.rect(11, -13, 2, 1, Color.pixel(0xAA8149))
+        head.rect(7, -16, 2, 2, Color.pixel(0x314943))
+        head.rect(7, -16, 1, 1, Color.pixel(0xFAF1D3))
+        head.rect(4, -12, 2, 1, Color.pixel(blue ? 0xD7B7AA : 0xE9B397))
+    }
+
+    private func encounterMushrooms(x: Double, y: Double) {
+        let cap = Color.pixel(0xC49B50), glow = Color.pixel(0xE4C474)
+        let edge = Color.pixel(0x9B8048), stem = Color.pixel(0xF0E2B4)
+        let creamSpot = Color.pixel(0xFBEBC1)
+        oval(x - 15, y - 1, 31, 4, color: deep.opacity(0.13), step: 1)
+        for (dx, dy, scale) in [(-9.0, 0.0, 0.72), (0.0, -1.0, 1.0), (10.0, 1.0, 0.62)] {
+            var local = self
+            local.context.translateBy(x: x + dx, y: y + dy)
+            local.context.scaleBy(x: scale, y: scale)
+            local.rect(-2, -8, 4, 9, edge)
+            local.rect(-1, -8, 3, 8, stem)
+            local.rect(-8, -12, 16, 5, edge)
+            local.rect(-8, -13, 16, 4, cap)
+            local.rect(-6, -16, 12, 4, cap)
+            local.rect(-3, -18, 6, 3, glow)
+            local.rect(-5, -16, 8, 3, glow)
+            local.rect(-5, -13, 3, 2, creamSpot)
+            local.rect(2, -15, 2, 2, creamSpot)
+            local.rect(4, -11, 2, 1, creamSpot)
+        }
     }
 
     private func rabbit(x: Double, y: Double, scale: Double, phase: Double) {

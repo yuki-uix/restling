@@ -28,13 +28,13 @@ final class ForestEventStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testNewStorePersistsAValidEmptyV3Archive() async throws {
+    func testNewStorePersistsAValidEmptyV4Archive() async throws {
         let f = try Fixture()
         defer { f.cleanup() }
         let store = f.store()
         let saved = try JSONDecoder().decode(ForestArchive.self,
             from: XCTUnwrap(f.defaults.data(forKey: "forestProfiles.v1")))
-        XCTAssertEqual(saved.version, 3)
+        XCTAssertEqual(saved.version, 4)
         XCTAssertEqual(saved.events, [])
         XCTAssertEqual(saved.recordingStartedAt, f.start)
         XCTAssertEqual(saved.profiles, store.profiles)
@@ -69,7 +69,7 @@ final class ForestEventStoreTests: XCTestCase {
         XCTAssertEqual(store.events, [])
         XCTAssertEqual(store.recordingStartedAt, f.start)
         XCTAssertEqual(f.defaults.data(forKey: "forestProfiles.v1.legacyV1Backup"), original)
-        XCTAssertEqual(try store.snapshot().version, 3)
+        XCTAssertEqual(try store.snapshot().version, 4)
         // A replay from an old timer remains a duplicate, not a new historical row.
         XCTAssertFalse(store.completeRest(profileID: first.id, id: oldIDs[0], seconds: 20))
         XCTAssertFalse(store.skipRest(profileID: first.id, id: oldIDs[0], seconds: 20))
