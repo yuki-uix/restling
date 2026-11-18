@@ -154,6 +154,55 @@ final class ReminderExperienceTests: XCTestCase {
     }
 
     @MainActor
+    func testOptionalScheduleCanBeDisabledOutsideItsWindowWithoutLosingSelectedDaysAndTimes() async throws {
+        let prefs = ReminderPreferences(scheduleEnabled: true, weekdays: [2, 6],
+            startMinute: 600, endMinute: 1_020, idlePauseEnabled: false, returnGraceSeconds: 0)
+        let f = try fixture(preferences: prefs, date: date(day: 7, hour: 22))
+        defer { f.cleanup() }
+        f.model.toggleRunning()
+        XCTAssertEqual(f.model.pauseReason, .outsideSchedule)
+        var unrestricted = prefs
+        unrestricted.scheduleEnabled = false
+        f.model.applyReminderPreferences(unrestricted)
+        XCTAssertNil(f.model.pauseReason)
+        XCTAssertTrue(f.model.engine.isRunning)
+        XCTAssertEqual(f.model.reminderPreferences.weekdays, prefs.weekdays)
+        XCTAssertEqual(f.model.reminderPreferences.startMinute, prefs.startMinute)
+        XCTAssertEqual(f.model.reminderPreferences.endMinute, prefs.endMinute)
+        XCTAssertFalse(try JSONDecoder().decode(ReminderPreferences.self,
+            from: XCTUnwrap(f.defaults.data(forKey: "reminderPreferences.v1"))).scheduleEnabled)
+        f.model.advanceTimer(by: 60)
+        XCTAssertTrue(f.model.showingRest)
+        f.model.applyReminderPreferences(prefs)
+        XCTAssertEqual(f.model.pauseReason, .outsideSchedule)
+        XCTAssertFalse(f.model.showingRest)
+        XCTAssertEqual(f.model.forest.current.completedRests, 0)
+        XCTAssertEqual(f.model.reminderPreferences, prefs)
+    }
+
+    @MainActor
+    func testDisablingScheduleStillHonorsDoNotDisturbAndManualPause() async throws {
+        let prefs = ReminderPreferences(scheduleEnabled: true, idlePauseEnabled: false, returnGraceSeconds: 0)
+        let f = try fixture(preferences: prefs, date: date(day: 7, hour: 22))
+        defer { f.cleanup() }
+        f.model.toggleRunning()
+        f.model.pauseFor(minutes: 30)
+        var unrestricted = prefs
+        unrestricted.scheduleEnabled = false
+        f.model.applyReminderPreferences(unrestricted)
+        XCTAssertEqual(f.model.pauseReason, .doNotDisturb)
+        XCTAssertFalse(f.model.engine.isRunning)
+        f.model.toggleRunning()
+        XCTAssertFalse(f.model.wantsRunning)
+        f.model.endDoNotDisturb()
+        XCTAssertNil(f.model.pauseReason)
+        XCTAssertFalse(f.model.engine.isRunning)
+        XCTAssertFalse(f.model.wantsRunning)
+        XCTAssertFalse(f.model.showingRest)
+        XCTAssertEqual(f.model.forest.current.completedRests, 0)
+    }
+
+    @MainActor
     func testWorkWindowEndSuppressesReminderAndNextWindowStartsFresh() async throws {
         let prefs = ReminderPreferences(scheduleEnabled: true, weekdays: [2],
             idlePauseEnabled: false, returnGraceSeconds: 0)

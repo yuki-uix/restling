@@ -31,6 +31,22 @@ You can also download the app from [GitHub Releases](https://github.com/yuki-uix
 
 The default rhythm is adjustable. This is a rest companion, with no streak penalty or withering trees.
 
+## Forest footprints
+
+Open **“森林足迹”** from the main window's forest card or menu bar to browse 18 achievements for the current forest. Each has a small story, a clear condition and its own progress. Earned footprints appear automatically; there is nothing to claim during a break.
+
+| Group | What leaves a footprint |
+| --- | --- |
+| First growth | The first completed rest, the first tree, flowers at 6 rests and the stream at 12 |
+| Exploration | Mushrooms at 24 rests, a full grove at 48, the next grove at 49, the third grove at 97 and 100 completed rests |
+| Tree variety | Actually planting mature trees of 2, 4 and all 6 species |
+| Ecological discoveries | The existing pond at 36 rests, stone bridge at 72 and visitors at 120 |
+| Time for yourself | A cumulative 10 minutes, 1 hour and 3 hours of completed rest timers |
+
+Footprints reflect existing forest progress; they do not add new scenery, trees, rewards or event records. Unlocking a species or selecting it does not count as planting it. The first grove remains current at 48 rests; the 49th begins the next piece of land. Time footprints count completed timers, not verified gaze or health outcomes.
+
+Each local forest has its own footprints. Existing progress is recognized after upgrading without inventing unlock dates. Taking days away does not reset achievements, and there are no streaks or attendance requirements. Restoring a backup shows the footprints supported by that restored forest snapshot, rather than retaining progress from the replaced data.
+
 ## Scenery that stays with your forest
 
 Open **“林地手记”** from the main window's forest card or menu bar to see the next ecological discovery, its cumulative-rest condition and the grove it belongs to.
@@ -50,7 +66,7 @@ The new scenery and visitors are for the normal forest window after a break. The
 Open **“提醒设置…”** from the menu bar or the settings button in the main window. Rhythm and reminder choices stay as a draft until you save; cancelling leaves them unchanged.
 
 - **A gentle heads-up:** by default, a small non-activating panel appears 10 seconds before a break. Choose 10, 20 or 30 seconds, or turn it off. During the heads-up or a full-screen break, choose **3 or 5 minutes later**; a later choice replaces the pending deadline and earns no forest growth.
-- **Working days and hours:** optionally restrict reminders to selected weekdays and local start/end times. A Friday 22:00–06:00 window belongs to Friday and continues into Saturday morning. Equal start/end times mean the whole selected day. Outside the window there is no break overlay or reminder sound; the next eligible window starts a fresh use interval.
+- **Optional working days and hours:** **“启用工作日与时段限制”** is off by default. When off, the day and time controls are hidden and reminders are not restricted by the calendar; other choices such as do-not-disturb, away detection and manual pause still apply. Turn it on to select weekdays and local start/end times. Turning it off keeps those selections for later; Save applies the draft and Cancel leaves the saved preference unchanged. Upgrading preserves whether you already enabled the restriction. A Friday 22:00–06:00 window belongs to Friday and continues into Saturday morning. Equal start/end times mean the whole selected day. Outside an enabled window there is no break overlay or reminder sound; the next eligible window starts a fresh use interval.
 - **Temporary do-not-disturb:** choose **30 minutes or 1 hour** from the menu bar, or end it early. The menu shows the reason and recovery time. Reminders resume only when the other restrictions also allow them; a manual pause stays paused.
 - **Away and return:** no-input detection is enabled by default after 5 minutes and can be disabled or adjusted. Locking the Mac or meeting the idle threshold cancels the pending break and restarts the use interval. Returning adds a configurable grace period, 30 seconds by default. Keeping still during an active break does not itself interrupt that break.
 - **Separate sound controls:** start and end cues can be turned off independently. Previews are silent; blocked reminders do not play either cue. The end cue lets you finish a break without watching its countdown.

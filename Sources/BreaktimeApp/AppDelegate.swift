@@ -141,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         appMenu.addItem(item("数据与备份…", #selector(showDataBackup)))
         appMenu.addItem(item("林地手记…", #selector(showForestEcology)))
+        appMenu.addItem(item("森林足迹…", #selector(showForestAchievements)))
         appMenu.addItem(item("检查更新…", #selector(showUpdates)))
         appMenu.addItem(item("关闭窗口", #selector(closeMainWindow), key: "w"))
         appMenu.addItem(.separator())
@@ -196,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("提醒设置…", #selector(showReminderSettings)))
         menu.addItem(item("数据与备份…", #selector(showDataBackup)))
         menu.addItem(item("林地手记…", #selector(showForestEcology)))
+        menu.addItem(item("森林足迹…", #selector(showForestAchievements)))
         menu.addItem(item("打开 Restling…", #selector(showMainWindow), key: ","))
         updateItem = item("检查更新…", #selector(showUpdates))
         menu.addItem(updateItem)
@@ -316,6 +318,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showForestEcology() {
         showMainWindow()
         NotificationCenter.default.post(name: .init("Restling.showForestEcology"), object: nil)
+    }
+    @objc private func showForestAchievements() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .init("Restling.showForestAchievements"), object: nil)
     }
     @objc private func willSleep() { model.willSleep() }
     @objc private func didWake() { model.didWake() }

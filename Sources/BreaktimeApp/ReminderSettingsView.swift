@@ -98,31 +98,34 @@ struct ReminderSettingsView: View {
     }
 
     private var scheduleGroup: some View {
-        group("工作日与提醒时段") {
-            Toggle("仅在选定时段提醒", isOn: $draft.scheduleEnabled)
+        group("工作日与提醒时段 · 可选") {
+            Toggle("启用工作日与时段限制", isOn: $draft.scheduleEnabled)
+                .toggleStyle(.switch)
                 .accessibilityIdentifier("reminder.settings.scheduleEnabled")
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 7) {
-                    ForEach(orderedWeekdays, id: \.self) { day in
-                        Toggle(weekdayTitles[day]!, isOn: weekdayBinding(day))
-                            .toggleStyle(.button)
-                            .font(.system(size: 12))
-                            .accessibilityLabel("\(weekdayTitles[day]!)提醒")
+            if draft.scheduleEnabled {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 7) {
+                        ForEach(orderedWeekdays, id: \.self) { day in
+                            Toggle(weekdayTitles[day]!, isOn: weekdayBinding(day))
+                                .toggleStyle(.button)
+                                .font(.system(size: 12))
+                                .accessibilityLabel("\(weekdayTitles[day]!)提醒")
+                        }
+                    }
+                    HStack(spacing: 30) {
+                        DatePicker("开始", selection: clockBinding(\.startMinute), displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.field)
+                            .accessibilityLabel("提醒时段开始时间")
+                        DatePicker("结束", selection: clockBinding(\.endMinute), displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.field)
+                            .accessibilityLabel("提醒时段结束时间")
+                    }
+                    if draft.weekdays.isEmpty {
+                        Text("尚未选择提醒日。")
+                            .font(.system(size: 12)).foregroundStyle(Color.red)
                     }
                 }
-                HStack(spacing: 30) {
-                    DatePicker("开始", selection: clockBinding(\.startMinute), displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.field)
-                        .accessibilityLabel("提醒时段开始时间")
-                    DatePicker("结束", selection: clockBinding(\.endMinute), displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.field)
-                        .accessibilityLabel("提醒时段结束时间")
-                }
-                if draft.scheduleEnabled && draft.weekdays.isEmpty {
-                    Text("尚未选择提醒日。")
-                        .font(.system(size: 12)).foregroundStyle(Color.red)
-                }
-            }.disabled(!draft.scheduleEnabled)
+            }
             note(scheduleExplanation)
         }
     }
@@ -193,7 +196,7 @@ struct ReminderSettingsView: View {
     }
 
     private var scheduleExplanation: String {
-        if !draft.scheduleEnabled { return "关闭限制后，提醒可在任意日期和时间运行。" }
+        if !draft.scheduleEnabled { return "未开启：不限制日期和时间，仍遵循暂停、勿扰与离席设置。开启后可选择提醒日和时间；关闭会保留上次选择。" }
         if draft.startMinute == draft.endMinute { return "开始与结束相同，表示所选日期全天可提醒。" }
         if draft.startMinute > draft.endMinute {
             return "跨午夜的时段归开始的那一天，例如周五 22:00 至周六 06:00 算周五。"
