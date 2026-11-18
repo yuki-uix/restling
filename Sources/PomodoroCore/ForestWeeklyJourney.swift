@@ -25,6 +25,9 @@ public struct ForestWeek: Codable, Equatable, Identifiable, Sendable {
     public private(set) var lastGrowthCount: Int
     public private(set) var lastGrowthTarget: Int
     public private(set) var lastSpecies: ForestSpecies
+    /// Missing in v3 archives. Nil preserves the fact that no historical
+    /// encounter chances were recorded before this feature existed.
+    public private(set) var encounterRolls: [ForestEncounterRoll]?
 
     public var completedRests: Int { restIDs.count }
     public var treeCount: Int { treeIDs.count }
@@ -46,6 +49,7 @@ public struct ForestWeek: Codable, Equatable, Identifiable, Sendable {
         lastGrowthCount = 0
         lastGrowthTarget = 3
         lastSpecies = .oak
+        encounterRolls = []
     }
 
     public static func containing(_ date: Date, calendar source: Calendar = .current) -> ForestWeek? {
@@ -85,6 +89,18 @@ public struct ForestWeek: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
+    mutating func recordEncounterChance(restID: UUID, date: Date, seed: UInt64) {
+        // A clock/timezone rollback can credit a rest to the retained current
+        // week. It must not invent an encounter dated outside that week.
+        guard date >= startDate, date < endDate else { return }
+        let rolls = encounterRolls ?? []
+        let day = encounterCalendar.startOfDay(for: date)
+        guard rolls.count < 7,
+              !rolls.contains(where: { encounterCalendar.startOfDay(for: $0.occurredAt) == day }) else { return }
+        let kind = ForestEncounterPolicy.kind(seed: seed, weekID: id, restID: restID, previous: rolls)
+        encounterRolls = rolls + [ForestEncounterRoll(id: restID, occurredAt: date, kind: kind)]
+    }
+
     mutating func move(treeID: UUID, to slot: Int) -> Bool {
         guard slot >= 0, slot < pageCount * 16,
               let index = placements.firstIndex(where: { $0.treeID == treeID }) else { return false }
@@ -119,6 +135,7 @@ public struct ForestWeek: Codable, Equatable, Identifiable, Sendable {
               placements.allSatisfy({ $0.slot >= 0 && $0.slot < pageCount * 16 }) else {
             throw ForestDataError.invalid("周森林的日期、记录或树木布局不完整。")
         }
+        try validateEncounters()
     }
 }
 
@@ -166,11 +183,12 @@ public struct ForestWeeklyJourney: Codable, Equatable, Sendable {
         return candidate.id <= floor.id ? floor : candidate
     }
 
-    mutating func append(restID: UUID, seconds: TimeInterval, treeID: UUID?, species: ForestSpecies,
+    mutating func append(restID: UUID, seconds: TimeInterval, treeID: UUID?, species: ForestSpecies, seed: UInt64,
                          date: Date, calendar: Calendar) {
         let current = displayWeek(at: date, calendar: calendar)
         if weeks.last?.id != current.id { weeks.append(current) }
         weeks[weeks.count - 1].append(restID: restID, seconds: seconds, treeID: treeID)
+        weeks[weeks.count - 1].recordEncounterChance(restID: restID, date: date, seed: seed)
         let count = growthCount
         let target = growthTarget
         weeks[weeks.count - 1].setSnapshot(count: count, target: target, species: species)
@@ -205,6 +223,7 @@ public struct ForestWeeklyJourney: Codable, Equatable, Sendable {
         let treesByID = Dictionary(uniqueKeysWithValues: profile.trees.map { ($0.id, $0) })
         for week in weeks {
             try week.validate()
+            try week.validateEncounters(seed: profile.seed)
             guard week.id >= startingWeek.id, previousID == nil || week.id > previousID! else {
                 throw ForestDataError.invalid("每周森林顺序或日期重复。")
             }

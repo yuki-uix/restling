@@ -99,7 +99,7 @@ final class WeeklyForestIntegrationTests: XCTestCase {
         let f = try Fixture(date: date())
         defer { f.cleanup() }
         XCTAssertNotNil(f.model.forest.current.weeklyJourney)
-        XCTAssertEqual(try f.model.forest.snapshot().version, 3)
+        XCTAssertEqual(try f.model.forest.snapshot().version, 4)
         XCTAssertTrue(f.model.forest.current.weeklyJourney!.weeks.isEmpty)
         for _ in 0..<3 { try f.completeOneRest() }
         let first = f.model.forest.current.trees
@@ -189,7 +189,7 @@ final class WeeklyForestIntegrationTests: XCTestCase {
         XCTAssertFalse(f.model.reminderPreferences.scheduleEnabled)
         XCTAssertEqual(f.defaults.string(forKey: "forestWeatherPreference.v1"), "cloudy")
         XCTAssertFalse(f.defaults.bool(forKey: "appUpdates.v1.automaticChecksEnabled"))
-        XCTAssertEqual(try f.model.forest.snapshot().version, 3)
+        XCTAssertEqual(try f.model.forest.snapshot().version, 4)
         let restored = f.restoreModel()
         XCTAssertEqual(restored.forest.current, current)
         XCTAssertEqual(restored.forest.events, f.model.forest.events)
@@ -250,7 +250,7 @@ final class WeeklyForestIntegrationTests: XCTestCase {
         f.model.refreshEligibility()
         try f.completeOneRest()
         let backup = try RestlingBackup.decode(f.model.makeBackup().encoded())
-        XCTAssertEqual(backup.forest.version, 3)
+        XCTAssertEqual(backup.forest.version, 4)
         let original = backup.forest
         f.model.nextPhase()
         XCTAssertTrue(f.model.showingRest)

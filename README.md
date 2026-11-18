@@ -74,6 +74,14 @@ These weeks do not need to be consecutive. Once a discovery appears, the journal
 
 The scenery and visitors are for the normal forest window after a break. They do not appear in the 20-second rest overlay, and there is nothing to claim or attend to during the break. Within each new week, flowers, a stream and mushrooms appear at 6, 12 and 24 completed rests; new tree growth follows the slower cultivation cycle.
 
+## Little forest encounters
+
+Version 0.15.0 adds **“林间偶遇”**: a little red bird, a little blue bird, or a cluster of golden mushrooms can appear after a completed rest. They stay with that week's forest. Open a week in **“森林年鉴”** to see their dates and short notes. These are occasional scenery, separate from the fixed pond, bridge and rabbit milestones.
+
+Each forest gets at most one chance per local day with a completed rest: a 25% chance, at most two encounters per week, with no repeated kind in that week. If the first two eligible days find nothing, the third eligible day guarantees one encounter; the days do not need to be consecutive. Extra rests in the same day do not add chances. Results, including days with no encounter, are saved locally. Relaunching or browsing does not roll again, and old records are not retroactively given encounters.
+
+Encounters appear only in the ordinary forest after the break, with a quiet line in the existing completion message and a yearbook note. There are no encounter alerts, sounds, claims, time limits or extra growth rewards. The 20-second rest screen stays free of these additions; Reduce Motion freezes their animation.
+
 ## Reminders that fit your day
 
 Open **“提醒设置…”** from the menu bar or the settings button in the main window. Rhythm and reminder choices stay as a draft until you save; cancelling leaves them unchanged.
@@ -102,7 +110,7 @@ Open **“数据与备份”** from the main window's footer or the menu bar. It
 
 If the existing archive cannot be read, the data window identifies the temporary forest and offers **“导出原始存档…”** instead of presenting it as a complete backup. The raw export preserves the unreadable bytes; it is not a validated Restling backup. You can select a valid backup to repair the local data. Before applying it, Restling saves the exact unreadable original and the current portable settings in a local safety file. Returning to that safety copy is explicitly reviewed as a return to the unreadable state, and a valid backup can be selected again to repair it. The app does not display unknown original counts as zero.
 
-Version 0.14.0 uses forest archive **version 3** inside the existing backup envelope **version 1**. Valid older local archives and portable backups remain readable. Restoring an older backup preserves its original forest, then starts weekly cultivation without inventing past weeks. Archives and backups containing weekly forests require **Restling 0.14.0 or later**; earlier app versions cannot read them. See [the backup format and recovery rules](docs/backup-format.md).
+Version 0.15.0 writes forest archive **version 4** inside the existing backup envelope **version 1**, so encounter results travel with a backup. Valid older local archives and portable backups remain readable. Restoring an older backup preserves its original forest, then starts weekly cultivation without inventing past weeks or encounters. Version 4 archives and backups require **Restling 0.15.0 or later**; the 0.14.0 reader supports weekly archive version 3 and cannot read version 4. See [the backup format and recovery rules](docs/backup-format.md).
 
 The yearbook is a local record of completed timers. Accounts, cloud sync and mobile clients remain separate work.
 

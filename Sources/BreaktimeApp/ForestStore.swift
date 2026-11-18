@@ -14,9 +14,11 @@ final class ForestStore: ObservableObject {
         let growthCount: Int
         let growthTarget: Int
         let newDiscoveries: [ForestEcologyMilestone]
+        let newEncounter: ForestEncounterKind?
 
         var title: String {
             if let discovery = newDiscoveries.first { return discovery.title + "，来到森林了。" }
+            if let encounter = newEncounter { return encounter.title }
             if didGrowTree { return "一棵树，留在了这一周。" }
             if completedRests == 1 { return "你的森林，发芽了。" }
             if startedNewWeek { return "这一周，也留下了一点绿。" }
@@ -24,6 +26,7 @@ final class ForestStore: ObservableObject {
         }
         var detail: String {
             if !newDiscoveries.isEmpty { return "新的生态风景已经留下，休息后可以去林地手记看看。" }
+            if newEncounter != nil { return "这次林间偶遇已留在本周森林，森林年鉴里也记下了这一刻。" }
             if didGrowTree { return "它会一直留在本周森林。下一棵树，慢慢培育二十四次休息。" }
             return "本轮滋养 \(growthCount) / \(growthTarget)；未成熟的植物会跨周继续培育。"
         }
@@ -70,6 +73,9 @@ final class ForestStore: ObservableObject {
                 apply(saved)
                 if saved.profiles.contains(where: { $0.weeklyJourney == nil }) {
                     preserveOriginal(data, primaryKey: storageKey + ".legacyV2Backup")
+                    saveCurrent()
+                } else if saved.version == 3 {
+                    preserveOriginal(data, primaryKey: storageKey + ".legacyV3Backup")
                     saveCurrent()
                 }
                 return
@@ -226,7 +232,8 @@ final class ForestStore: ObservableObject {
                 growthCount: after.growthCount, growthTarget: after.growthTarget,
                 newDiscoveries: ForestEcology(profile: after).unlockedMilestones.filter {
                     !ForestEcology(profile: before).isUnlocked($0)
-                })
+                },
+                newEncounter: after.weeklyJourney?.weeks.last?.encounters.first { $0.id == id }?.kind)
             return true
         } catch {
             reportSaveFailure()

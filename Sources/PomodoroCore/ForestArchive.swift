@@ -11,7 +11,7 @@ public struct ForestArchive: Codable, Equatable, Sendable {
 
     public init(profiles: [ForestProfile], activeProfileID: UUID,
                 events: [ForestRestEvent] = [], recordingStartedAt: Date = Date()) throws {
-        version = profiles.contains(where: { $0.weeklyJourney != nil }) ? 3 : 2
+        version = profiles.contains(where: { $0.weeklyJourney != nil }) ? 4 : 2
         self.profiles = profiles
         self.activeProfileID = activeProfileID
         self.events = events
@@ -20,7 +20,7 @@ public struct ForestArchive: Codable, Equatable, Sendable {
     }
 
     public func validate() throws {
-        guard [2, 3].contains(version) else {
+        guard [2, 3, 4].contains(version) else {
             throw ForestDataError.invalid("暂不支持这个森林存档版本，请使用兼容的 Restling 版本。")
         }
         guard !profiles.isEmpty, Set(profiles.map(\.id)).count == profiles.count,
@@ -34,6 +34,13 @@ public struct ForestArchive: Codable, Equatable, Sendable {
         } else {
             guard profiles.allSatisfy({ $0.weeklyJourney != nil }) else {
                 throw ForestDataError.invalid("每周森林存档缺少培育记录。")
+            }
+        }
+        if version < 4 {
+            guard profiles.allSatisfy({ profile in
+                profile.weeklyJourney?.weeks.allSatisfy { ($0.encounterRolls ?? []).isEmpty } ?? true
+            }) else {
+                throw ForestDataError.invalid("林间偶遇需要版本 4 存档，不能写入旧版存档。")
             }
         }
         try ForestDataValidation.validateDate(recordingStartedAt, field: "森林开始记录的时间")
@@ -76,6 +83,12 @@ public struct ForestArchive: Codable, Equatable, Sendable {
             if let journey = profile.weeklyJourney {
                 let treesByID = Dictionary(uniqueKeysWithValues: profile.trees.map { ($0.id, $0) })
                 for week in journey.weeks {
+                    for roll in week.encounterRolls ?? [] {
+                        guard let event = eventsByID[roll.id], event.profileID == profile.id,
+                              event.outcome == .completed, event.occurredAt == roll.occurredAt else {
+                            throw ForestDataError.invalid("林间偶遇缺少对应的已完成休息记录。")
+                        }
+                    }
                     var seconds: TimeInterval = 0
                     for id in week.restIDs {
                         guard let event = eventsByID[id], event.profileID == profile.id, event.outcome == .completed else {

@@ -140,7 +140,7 @@ public struct ForestProfile: Codable, Equatable, Identifiable, Sendable {
             let growsTree = journey.growthCount + 1 == journey.growthTarget
             let grownSpecies = completedRests + 1 >= selectedSpecies.unlockAfter ? selectedSpecies : .oak
             journey.append(restID: restID, seconds: seconds, treeID: growsTree ? restID : nil,
-                           species: grownSpecies, date: date, calendar: calendar)
+                           species: grownSpecies, seed: seed, date: date, calendar: calendar)
             creditedRestIDs.insert(restID)
             completedRests += 1
             totalRestSeconds += seconds
